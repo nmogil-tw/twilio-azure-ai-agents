@@ -1,6 +1,6 @@
 # twilio-azure-ai-agents
 
-A Node.js command-line tool for interacting with Azure AI Agents. This CLI allows you to chat with an Azure-hosted agent directly from your terminal, supporting both streaming and non-streaming responses.
+A Node.js command-line tool for interacting with Azure AI Agents. This CLI allows you to chat with an Azure-hosted agent directly from your terminal, supporting both streaming (not supported as of 7/31/25) and non-streaming responses.
 
 ## Setup
 
