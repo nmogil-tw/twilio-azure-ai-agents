@@ -18,9 +18,9 @@ function debugLog(...args) {
 }
 
 // Create a new thread for the conversation
-async function createThread() {
+async function createThread(metadata = {}) {
   try {
-    const thread = await client.threads.create({ agentId });
+    const thread = await client.threads.create({ agentId, metadata });
     debugLog("Full thread object returned by client.threads.create:", thread);
     debugLog("Created thread:", thread.id);
     return thread.id;
@@ -145,12 +145,60 @@ async function runAgent(threadId) {
 async function main() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   let threadId;
+  let metadata = {};
+
+  // Helper to ask a question and return a Promise
+  function askQuestion(query) {
+    return new Promise((resolve) => rl.question(query, resolve));
+  }
+
   try {
-    threadId = await createThread();
+    // New CLI flow: ask if user wants to create a new thread
+    let answer = await askQuestion("Do you want to create a new thread? (y/n) ");
+    answer = answer.trim().toLowerCase();
+    if (answer === "y") {
+      // Prompt for metadata BEFORE thread creation
+      let metaAnswer = await askQuestion("Do you want to add metadata to the new thread? (y/n) ");
+      metaAnswer = metaAnswer.trim().toLowerCase();
+      if (metaAnswer === "y") {
+        console.log('Enter metadata as key=value, one per line. Enter an empty line to finish.');
+        while (true) {
+          let pair = await askQuestion("> ");
+          pair = pair.trim();
+          if (pair === "") break;
+          const eqIdx = pair.indexOf("=");
+          if (eqIdx === -1) {
+            console.log("Invalid format. Please enter as key=value.");
+            continue;
+          }
+          const key = pair.slice(0, eqIdx).trim();
+          const value = pair.slice(eqIdx + 1).trim();
+          if (!key) {
+            console.log("Key cannot be empty.");
+            continue;
+          }
+          metadata[key] = value;
+        }
+      }
+      threadId = await createThread(metadata);
+    } else if (answer === "n") {
+      threadId = await askQuestion("Enter the thread ID to use: ");
+      threadId = threadId.trim();
+      if (!threadId) {
+        console.error("No thread ID provided. Exiting.");
+        rl.close();
+        return;
+      }
+    } else {
+      console.error('Invalid input. Please enter "y" or "n". Exiting.');
+      rl.close();
+      return;
+    }
   } catch {
     rl.close();
     return;
   }
+
   rl.setPrompt("You: ");
   rl.prompt();
   rl.on("line", async (line) => {
