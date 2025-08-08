@@ -100,8 +100,7 @@ async function addMessageToThread(threadId, content) {
   try {
     debugLog("message.created");
     const message = await client.messages.create(threadId, "user", content);
-    // debugLog("Added message:", message.id);
-    return message.id;
+        return message.id;
   } catch (err) {
     logError("adding message", err);
     throw err;
@@ -161,9 +160,14 @@ async function printLastAgentReply(threadId) {
  * @param {string} threadId
  * @returns {Promise<void>}
  */
+/**
+ * Stream agent reply using REST API (STREAMING=api).
+ */
 async function streamAgentReplyViaRestApi(threadId) {
   debugLog("REST_API_STREAMING");
   try {
+    // 1. Get an access token from Azure.
+    //    - This is needed to securely talk to the REST API.
     const credential = new DefaultAzureCredential();
     let accessToken;
     try {
@@ -175,19 +179,21 @@ async function streamAgentReplyViaRestApi(threadId) {
     if (!accessToken) {
       throw new Error("Azure access token is required for REST API (STREAMING=api).");
     }
+
+    // 2. Prepare the function to make web requests (fetch).
     const fetchFn = globalThis.fetch || (await import("node-fetch")).default;
 
+    // 3. Build the URL and data needed to start the agent run.
+    //    - The URL tells Azure which project, thread, and version to use.
+    //    - The payload includes the agent's ID and tells Azure to stream the reply.
     const runCreateEndpoint = `${projectEndpoint}/api/projects/${projectId}/threads/${threadId}/runs?api-version=2025-05-01`;
     const runCreatePayload = {
       // Ensure assistant_id is always a string
       assistant_id: (agentId && typeof agentId === "object" && agentId.id) ? agentId.id : agentId,
       stream: true
     };
-    // debugLog("REST API run creation endpoint:", runCreateEndpoint);
-    // debugLog("REST API run creation payload:", JSON.stringify(runCreatePayload));
-    // debugLog("REST API agentId type:", typeof agentId, "value:", agentId);
-    // debugLog("REST API assistant_id type:", typeof runCreatePayload.assistant_id, "value:", runCreatePayload.assistant_id);
 
+    // 4. Send a request to Azure to start the agent run and ask for a streamed reply.
     const runCreateResp = await fetchFn(runCreateEndpoint, {
       method: "POST",
       headers: {
@@ -198,18 +204,22 @@ async function streamAgentReplyViaRestApi(threadId) {
       body: JSON.stringify(runCreatePayload)
     });
 
+    // 5. If the request failed, show an error and stop.
     if (!runCreateResp.ok) {
       let errorText = await runCreateResp.text();
       debugLog("REST API run creation error response body:", errorText);
       throw new Error(`Failed to create run: ${runCreateResp.status} ${runCreateResp.statusText}`);
     }
 
+    // 6. Set up to read the streamed reply from Azure.
+    //    - The reply comes in small pieces, like a live chat.
     debugLog("REST_API_STREAMING_RESPONSE");
     const reader = runCreateResp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let replyStarted = false;
 
+    // 7. Read each piece of the reply as it arrives.
     while (true) {
       const { done, value } = await reader.read();
       if (value) {
@@ -222,7 +232,7 @@ async function streamAgentReplyViaRestApi(threadId) {
       const decodedChunk = decoder.decode(value, { stream: true });
       buffer += decodedChunk;
 
-      // Split on newlines (SSE format)
+      // 8. Split the reply into lines, as the server sends one event per line.
       let lines = buffer.split("\n");
       buffer = lines.pop(); // Save incomplete line for next chunk
 
@@ -230,25 +240,43 @@ async function streamAgentReplyViaRestApi(threadId) {
         line = line.trim();
         if (!line || !line.startsWith("data:")) continue;
         const data = line.slice(5).trim();
-        // Debug: log the raw data line
-        // Removed raw SSE event debug log for cleaner streaming logs
+        // 9. If the server says "[DONE]", the reply is finished.
         if (data === "[DONE]") {
           if (replyStarted) process.stdout.write("\n");
           break;
         }
         try {
+          // 10. Try to understand the event sent by the server.
           const event = JSON.parse(data);
           if (event && event.event) {
             debugLog(event.event);
+            // 11. If the agent is calling a tool, print a message for the user.
+            if (
+              event.event === "thread.run.step.created" ||
+              event.event === "thread.run.step.in_progress" ||
+              event.event === "thread.run.step.completed"
+            ) {
+              console.log("Tool event handler triggered");
+              // Try to extract tool name/type from payload if available
+              let toolType = event.data?.step_details?.tool_name || event.data?.step_details?.type || "unknown tool";
+              // Always print user-facing tool call messages, regardless of DEBUG mode
+              if (event.event === "thread.run.step.created") {
+                console.log(`\n[Tool call started: ${toolType}]`);
+              } else if (event.event === "thread.run.step.in_progress") {
+                console.log(`[Tool call in progress: ${toolType}]`);
+              } else if (event.event === "thread.run.step.completed") {
+                console.log(`[Tool call completed: ${toolType}]`);
+              }
+            }
           }
-          // Special handling for thread.message.completed
-          // (No verbose debug output)
+          // 12. When the agent starts replying, print "Agent reply:" once.
           if (event && event.delta && event.delta.role === "assistant") {
             if (!replyStarted) {
               process.stdout.write("Agent reply: ");
               replyStarted = true;
             }
           }
+          // 13. Print each piece of the agent's reply as it arrives.
           if (event && event.delta) {
             debugLog("REST_API_STREAM_EVENT: " + JSON.stringify(event));
             // Handle streaming output for array content
@@ -274,6 +302,7 @@ async function streamAgentReplyViaRestApi(threadId) {
         }
       }
     }
+    // 14. If nothing was streamed, let the user know.
     if (!replyStarted) {
       console.log("No agent reply streamed.");
     }
@@ -288,17 +317,42 @@ async function streamAgentReplyViaRestApi(threadId) {
  * @param {object} run
  * @returns {Promise<void>}
  */
+/**
+ * Stream agent reply using SDK (STREAMING=sdk).
+ */
 async function streamAgentReplyViaSdk(run) {
   debugLog("SDK_STREAMING");
   try {
+    // 1. Start streaming the agent's reply using the SDK.
+    //    - This gives us a series of events as the agent works.
     const streamEventMessages = await run.stream();
     let replyStarted = false;
     let currentMessageId = null;
+
+    // 2. For each event from the agent, handle it as it arrives.
     for await (const event of streamEventMessages) {
-      // Special handling for thread.message.completed
+      // 3. If the agent is calling a tool, print a message for the user.
+      if (
+        event.eventType === "thread.run.step.created" ||
+        event.eventType === "thread.run.step.in_progress" ||
+        event.eventType === "thread.run.step.completed"
+      ) {
+        console.log("Tool event handler triggered");
+        let toolType = event.data?.step_details?.tool_name || event.data?.step_details?.type || "unknown tool";
+        // Always print user-facing tool call messages, regardless of DEBUG mode
+        if (event.eventType === "thread.run.step.created") {
+          console.log(`\n[Tool call started: ${toolType}]`);
+        } else if (event.eventType === "thread.run.step.in_progress") {
+          console.log(`[Tool call in progress: ${toolType}]`);
+        } else if (event.eventType === "thread.run.step.completed") {
+          console.log(`[Tool call completed: ${toolType}]`);
+        }
+      }
+      // 4. If the agent has finished a message, log it for debugging.
       if (event.eventType === "thread.message.completed") {
         debugLog("thread.message.completed");
       }
+      // 5. When the agent starts replying, print "Agent reply:" once.
       if (
         event.eventType === MessageStreamEvent.Delta &&
         event.data?.delta?.role === "assistant"
@@ -310,7 +364,7 @@ async function streamAgentReplyViaSdk(run) {
           replyStarted = true;
         }
         debugLog("SDK_STREAM_EVENT: " + JSON.stringify(event));
-        // Handle streaming output for array content
+        // 6. Print each piece of the agent's reply as it arrives.
         const content = event.data.delta.content;
         if (Array.isArray(content)) {
           for (const item of content) {
@@ -330,12 +384,15 @@ async function streamAgentReplyViaSdk(run) {
         }
       }
     }
+    // 7. When the reply is finished, print a new line.
     if (replyStarted) {
       process.stdout.write("\n");
     } else {
+      // 8. If nothing was streamed, let the user know.
       console.log("No agent reply streamed.");
     }
   } catch (err) {
+    // If anything goes wrong, show an error message.
     logError("streaming agent reply", err);
   }
 }
@@ -349,21 +406,33 @@ async function streamAgentReplyViaSdk(run) {
  * @param {string} threadId
  * @returns {Promise<void>}
  */
+/**
+ * Run the agent and handle streaming or non-streaming output.
+ */
 async function runAgent(threadId) {
   try {
     debugLog("runAgent");
     const streamingMode = (process.env.STREAMING || STREAMING_MODES.OFF).toLowerCase();
 
     if (streamingMode === STREAMING_MODES.API) {
+      // --- STREAMING=api: Stream agent reply using REST API ---
+      // 1. Call the function to stream the agent's reply using the REST API.
+      //    - This will show the agent's response as it is being generated, word by word.
+      //    - Useful for seeing the answer in real time.
       await streamAgentReplyViaRestApi(threadId);
+
     } else if (streamingMode === STREAMING_MODES.SDK) {
-      // For SDK streaming, construct a thenable run object with a stream() method
+      // --- STREAMING=sdk: Stream agent reply using SDK ---
+      // 1. Prepare the information needed to start the agent run.
+      //    - This includes the agent's ID and any options required.
+      // 2. Create a special "run" object that can start the agent and stream its reply.
+      //    - The run object has a "stream" method to get the reply as it is generated.
+      // 3. Call the function to stream the agent's reply using the SDK.
+      //    - The reply will appear gradually, just like a live chat.
       const context = {}; // Add any needed context here or pass as needed
       // Ensure assistantId is always a string
       const assistantId = (agentId && typeof agentId === "object" && agentId.id) ? agentId.id : agentId;
       const options = { assistant_id: String(assistantId) };
-      // debugLog("SDK streaming: assistantId type:", typeof assistantId, "value:", assistantId);
-      // debugLog("SDK streaming: options.assistant_id type:", typeof options.assistant_id, "value:", options.assistant_id);
 
       function executeCreateRun() {
         return client.runs.create(threadId, options);
@@ -386,28 +455,35 @@ async function runAgent(threadId) {
       };
 
       await streamAgentReplyViaSdk(run);
+
     } else {
-      debugLog("NON_STREAMING_MODE");
-      // For non-streaming, create run and poll for completion
+      // --- STREAMING=off: Non-streaming mode (default) ---
+      // 1. Start the agent run (ask the agent to answer the user's message).
+      //    - The agent works in the background to generate a reply.
       let run;
       try {
-        // Ensure assistant_id is always a string
+        // 2. Make sure the agent's ID is in the correct format.
         const safeAssistantId = (agentId && typeof agentId === "object" && agentId.id) ? agentId.id : agentId;
-        // debugLog("Non-streaming: safeAssistantId type:", typeof safeAssistantId, "value:", safeAssistantId);
         run = await client.runs.create(threadId, { assistant_id: safeAssistantId });
       } catch (err) {
+        // If there is a problem starting the run, show an error and stop.
         logError("creating run for non-streaming", err);
         return;
       }
+      // 3. Wait for the agent to finish its work.
+      //    - The program checks every few seconds to see if the agent is done.
       const status = await pollRunCompletion(threadId, run.id);
       console.log("Run status:", status.status);
       if (status.status === "completed") {
+        // 4. When the agent is done, print the last reply it gave.
         await printLastAgentReply(threadId);
       } else {
+        // If the agent failed, let the user know.
         console.log("Run failed.");
       }
     }
   } catch (err) {
+    // If anything goes wrong, show an error message.
     logError("running agent", err);
   }
 }
