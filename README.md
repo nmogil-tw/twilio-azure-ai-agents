@@ -14,8 +14,9 @@ A Node.js command-line tool for interacting with Azure AI Agents. This CLI allow
      - `AZURE_CLIENT_ID`
      - `AZURE_TENANT_ID`
      - `AZURE_CLIENT_SECRET`
+     - `AGENT_ID` (required: your Azure AI Agent ID)
    - Optional variables:
-     - `STREAMING` (set to `true` to enable streaming responses)
+     - `STREAMING` (controls response delivery: `off`, `sdk`, or `api`)
      - `PROJECT_ENDPOINT` and `MODEL_DEPLOYMENT_NAME` (to override defaults)
 
 ## Usage
@@ -28,4 +29,6 @@ node console_service.js
 
 - Type your message and press Enter to chat with the agent.
 - Type `exit` to quit the session.
-- If `STREAMING=true` is set in your `.env`, agent replies will stream in real time; otherwise, replies will appear after processing.
+- If `STREAMING=sdk` is set in your `.env`, agent replies will stream in real time using the SDK.
+- If `STREAMING=api`, the CLI will use direct REST API calls (no streaming/SSE; replies appear after processing).
+- If `STREAMING=off` or unset, replies will appear after processing (no streaming).
