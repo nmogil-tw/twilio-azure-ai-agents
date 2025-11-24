@@ -13,12 +13,15 @@ import readline from "readline";
 // Constants & Environment
 // =======================
 
-const DEFAULT_PROJECT_ENDPOINT = "https://nmogi-mctnmz7z-eastus2.services.ai.azure.com";
-const DEFAULT_PROJECT_ID = "nmogi-mctnmz7z-eastus2-project";
-
-const projectEndpoint = process.env.PROJECT_ENDPOINT || DEFAULT_PROJECT_ENDPOINT;
-const projectId = process.env.PROJECT_ID || DEFAULT_PROJECT_ID;
+const projectEndpoint = process.env.PROJECT_ENDPOINT;
+const projectId = process.env.PROJECT_ID;
 let agentId = process.env.AGENT_ID;
+
+if (!projectEndpoint || !projectId) {
+  console.error("Error: PROJECT_ENDPOINT and PROJECT_ID environment variables are required.");
+  console.error("Please set them in your .env file.");
+  process.exit(1);
+}
 
 const client = new AgentsClient(
   `${projectEndpoint}/api/projects/${projectId}`,
@@ -31,9 +34,6 @@ const isDebug = !!process.env.DEBUG;
 // Debug Logging
 // ==============
 
-/**
- * Print debug messages when DEBUG is enabled.
- */
 function debugLog(message) {
   if (isDebug && message) {
     console.log("[debug]", message);
@@ -44,16 +44,10 @@ function debugLog(message) {
 // Utility Functions
 // ===================
 
-/**
- * Promisified readline question.
- */
 function askQuestion(rl, query) {
   return new Promise((resolve) => rl.question(query, resolve));
 }
 
-/**
- * Standard error logger.
- */
 function logError(context, err) {
   console.error(`Error ${context}:`, err);
 }
@@ -62,9 +56,6 @@ function logError(context, err) {
 // Thread & Message Functions
 // ==========================
 
-/**
- * Create a new conversation thread.
- */
 async function createThread(metadata = {}) {
   try {
     const thread = await client.threads.create({ agentId, metadata });
@@ -76,9 +67,6 @@ async function createThread(metadata = {}) {
   }
 }
 
-/**
- * Add a user message to a thread.
- */
 async function addMessageToThread(threadId, content) {
   try {
     debugLog("Message created");
@@ -94,13 +82,9 @@ async function addMessageToThread(threadId, content) {
 // SDK Streaming Implementation
 // ==========================
 
-/**
- * Stream agent reply using SDK - enhanced with comprehensive event handling.
- */
 async function streamAgentReplyViaSdk(threadId) {
   debugLog("SDK_STREAMING");
   try {
-    // Create run and get stream directly, like the working example
     const assistantIdToUse = (agentId && typeof agentId === "object" && agentId.id) ? agentId.id : agentId;
     const streamEventMessages = await client.runs.create(threadId, assistantIdToUse).stream();
     
@@ -113,7 +97,6 @@ async function streamAgentReplyViaSdk(threadId) {
           debugLog(`ThreadRun status: ${eventMessage.data.status}`);
           break;
 
-        // Run state events
         case RunStreamEvent.ThreadRunQueued:
           console.log("🔄 Agent request queued...");
           break;
@@ -127,7 +110,6 @@ async function streamAgentReplyViaSdk(threadId) {
           }
           break;
 
-        // When agent requires action (function calling)
         case RunStreamEvent.ThreadRunRequiresAction:
           console.log("\n⚡ Agent needs to call external functions...");
           const requiredActions = eventMessage.data.required_action?.submit_tool_outputs?.tool_calls;
@@ -138,7 +120,6 @@ async function streamAgentReplyViaSdk(threadId) {
           }
           break;
 
-        // Cancellation and error states
         case RunStreamEvent.ThreadRunCancelling:
           console.log("\n⚠️  Agent run is being cancelled...");
           break;
@@ -158,7 +139,6 @@ async function streamAgentReplyViaSdk(threadId) {
           }
           return;
 
-        // Enhanced step-level events
         case RunStreamEvent.ThreadRunStepCreated: {
           const stepType = eventMessage.data?.step_details?.type;
           if (stepType === 'tool_calls') {
@@ -183,9 +163,8 @@ async function streamAgentReplyViaSdk(threadId) {
           }
           break;
         }
-          
+
         case RunStreamEvent.ThreadRunStepInProgress: {
-          // Show progress for long-running tools
           const progressStep = eventMessage.data?.step_details;
           if (progressStep?.type === 'tool_calls') {
             process.stdout.write("⏳");
@@ -197,7 +176,6 @@ async function streamAgentReplyViaSdk(threadId) {
           const completedStep = eventMessage.data?.step_details;
           if (completedStep?.type === 'tool_calls') {
             console.log(" ✅");
-            // Show tool outputs if available
             completedStep.tool_calls?.forEach(call => {
               if (isDebug && call.function?.output) {
                 console.log(`   Output: ${call.function.output.substring(0, 100)}...`);
@@ -207,7 +185,6 @@ async function streamAgentReplyViaSdk(threadId) {
           break;
         }
 
-        // Message creation events
         case MessageStreamEvent.ThreadMessageCreated:
           if (eventMessage.data.role === 'assistant') {
             if (isThinking) {
@@ -228,15 +205,13 @@ async function streamAgentReplyViaSdk(threadId) {
           debugLog("Message completed");
           break;
 
-        // File/attachment events
         case MessageStreamEvent.ThreadMessageAttachmentDelta:
           console.log("\n📎 Processing attachment...");
           break;
         
         case MessageStreamEvent.ThreadMessageDelta: {
           const messageDelta = eventMessage.data;
-          
-          // Print "Agent reply:" once when we first get assistant content
+
           if (messageDelta.delta?.role === "assistant" && !replyStarted) {
             if (isThinking) {
               console.log(); // New line after thinking
@@ -245,8 +220,7 @@ async function streamAgentReplyViaSdk(threadId) {
             process.stdout.write("Agent reply: ");
             replyStarted = true;
           }
-          
-          // Handle the delta content with support for different content types
+
           if (messageDelta.delta && messageDelta.delta.content) {
             messageDelta.delta.content.forEach((contentPart) => {
               if (contentPart.type === "text") {
@@ -276,7 +250,7 @@ async function streamAgentReplyViaSdk(threadId) {
             isThinking = false;
           }
           break;
-          
+
         case ErrorEvent.Error:
           console.error(`\n❌ Error occurred: ${eventMessage.data}`);
           break;
@@ -302,9 +276,6 @@ async function streamAgentReplyViaSdk(threadId) {
 // Agent Run Function
 // ==========================
 
-/**
- * Run the agent using SDK streaming.
- */
 async function runAgent(threadId) {
   try {
     debugLog("Running agent with SDK streaming");
@@ -318,9 +289,6 @@ async function runAgent(threadId) {
 // Interactive CLI Main Loop
 // ==========================
 
-/**
- * Main interactive CLI loop.
- */
 async function main() {
   console.log("Azure AI Agent Service - SDK Streaming Version");
   console.log("==============================================");
@@ -329,7 +297,6 @@ async function main() {
   let threadId;
   let metadata = {};
 
-  // Prompt for agentId if not set in env
   if (!agentId) {
     agentId = (await askQuestion(rl, "Enter the AGENT_ID to use: ")).trim();
     if (!agentId) {
@@ -339,11 +306,9 @@ async function main() {
     }
   }
 
-  // Thread selection/creation flow
   try {
     let answer = (await askQuestion(rl, "Do you want to create a new thread? (y/n) ")).trim().toLowerCase();
     if (answer === "y") {
-      // Prompt for metadata BEFORE thread creation
       let metaAnswer = (await askQuestion(rl, "Do you want to add metadata to the new thread? (y/n) ")).trim().toLowerCase();
       if (metaAnswer === "y") {
         console.log('Enter metadata as key=value, one per line. Enter an empty line to finish.');

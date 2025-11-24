@@ -1,6 +1,6 @@
-# twilio-azure-ai-agents
+# Twilio Azure AI Agents - Conversation Relay Example
 
-A Node.js command-line tool for interacting with Azure AI Agents. This CLI allows you to chat with an Azure-hosted agent directly from your terminal, supporting both streaming (not supported as of 7/31/25) and non-streaming responses.
+A production-ready Node.js command-line tool demonstrating how to implement Twilio Conversation Relay with Microsoft Azure AI Agents. This CLI provides an interactive chat interface with real-time streaming responses from Azure-hosted agents.
 
 ## Setup
 
@@ -11,24 +11,54 @@ A Node.js command-line tool for interacting with Azure AI Agents. This CLI allow
 
 2. **Configure environment variables:**
    - Copy `.env.example` to `.env` and fill in your Azure credentials:
-     - `AZURE_CLIENT_ID`
-     - `AZURE_TENANT_ID`
-     - `AZURE_CLIENT_SECRET`
-     - `AGENT_ID` (required: your Azure AI Agent ID)
+   - Required variables:
+     - `PROJECT_ENDPOINT` - Your Azure AI project endpoint (e.g., `https://your-project.services.ai.azure.com`)
+     - `PROJECT_ID` - Your Azure AI project ID
+     - `AGENT_ID` - Your Azure AI Agent ID
    - Optional variables:
-     - `STREAMING` (controls response delivery: `off`, `sdk`, or `api`)
-     - `PROJECT_ENDPOINT` and `MODEL_DEPLOYMENT_NAME` (to override defaults)
+     - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET` - Only needed if not using Azure CLI (`az login`) or other DefaultAzureCredential methods
+     - `DEBUG` - Set to any value to enable verbose debug logging
+
+3. **Authenticate with Azure:**
+   - Either run `az login` to authenticate via Azure CLI (recommended for development)
+   - Or set the Azure Service Principal credentials in your `.env` file
 
 ## Usage
 
 Start the CLI with:
 
 ```sh
-node console_service.js
+node twilio-azure-conversation-relay.js
 ```
 
-- Type your message and press Enter to chat with the agent.
-- Type `exit` to quit the session.
-- If `STREAMING=sdk` is set in your `.env`, agent replies will stream in real time using the SDK.
-- If `STREAMING=api`, the CLI will use direct REST API calls (no streaming/SSE; replies appear after processing).
-- If `STREAMING=off` or unset, replies will appear after processing (no streaming).
+The CLI provides an interactive chat interface with the following features:
+
+- **Real-time streaming**: Agent responses stream in real-time using the Azure AI SDK
+- **Thread management**: Create new conversation threads or continue existing ones
+- **Metadata support**: Add custom metadata to conversation threads
+- **Tool calling visibility**: See when the agent calls external functions or tools
+- **Error handling**: Graceful handling of errors and connection issues
+
+### Interactive prompts:
+
+1. If `AGENT_ID` is not set in `.env`, you'll be prompted to enter it
+2. Choose whether to create a new thread or use an existing one
+3. Optionally add metadata to new threads
+4. Type your messages and receive streaming responses
+5. Type `exit` to quit the session
+
+### Debug mode:
+
+Enable detailed logging by setting the `DEBUG` environment variable:
+
+```sh
+DEBUG=1 node twilio-azure-conversation-relay.js
+```
+
+## Features
+
+- **SDK-based streaming**: Uses Azure AI Agents SDK for efficient real-time responses
+- **Comprehensive event handling**: Tracks run states, tool calls, message creation, and errors
+- **Visual feedback**: Progress indicators for agent thinking and tool execution
+- **Flexible authentication**: Uses DefaultAzureCredential for secure authentication
+- **Production-ready**: Error handling, input validation, and clean shutdown

@@ -1,5 +1,21 @@
 {
+  "name": "twilio-azure-conversation-relay",
+  "version": "1.0.0",
+  "description": "Production example for implementing Twilio Conversation Relay with Microsoft Azure AI Agents",
+  "main": "twilio-azure-conversation-relay.js",
   "type": "module",
+  "scripts": {
+    "start": "node twilio-azure-conversation-relay.js"
+  },
+  "keywords": [
+    "twilio",
+    "azure",
+    "ai-agents",
+    "conversation-relay",
+    "streaming",
+    "chatbot"
+  ],
+  "author": "",
   "dependencies": {
     "@azure/ai-agents": "1.1.0",
     "@azure-rest/core-client": "^2.1.0",
