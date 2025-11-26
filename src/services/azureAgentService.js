@@ -142,6 +142,8 @@ export class AzureAgentService extends EventEmitter {
     }
 
     try {
+      const startTime = Date.now();
+
       if (config.debug) {
         console.log(` [${this.sessionId}] Starting stream for thread ${this.threadId}...`);
       }
@@ -154,8 +156,9 @@ export class AzureAgentService extends EventEmitter {
         .create(this.threadId, config.azure.agentId)
         .stream();
 
+      let firstTokenTime = null;
+
       let currentMessageContent = '';
-      let hasToolCalls = false;
 
       // Process stream events
       for await (const event of stream) {
@@ -183,7 +186,6 @@ export class AzureAgentService extends EventEmitter {
           case 'thread.run.requires_action':
             // Agent needs to execute tools
             // Azure handles this automatically, but we log it
-            hasToolCalls = true;
             if (event.data?.required_action?.submit_tool_outputs?.tool_calls) {
               for (const toolCall of event.data.required_action.submit_tool_outputs.tool_calls) {
                 if (config.debug) {
@@ -222,6 +224,15 @@ export class AzureAgentService extends EventEmitter {
                 if (contentPart.type === 'text' && contentPart.text?.value) {
                   const token = contentPart.text.value;
                   currentMessageContent += token;
+
+                  // Track time to first token
+                  if (!firstTokenTime) {
+                    firstTokenTime = Date.now();
+                    const latency = firstTokenTime - startTime;
+                    if (config.debug) {
+                      console.log(` [${this.sessionId}] ⚡ First token latency: ${latency}ms`);
+                    }
+                  }
 
                   // Emit each token for real-time streaming
                   this.emit('textDelta', token);
