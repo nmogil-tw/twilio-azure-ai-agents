@@ -5,7 +5,8 @@
   "main": "twilio-azure-conversation-relay.js",
   "type": "module",
   "scripts": {
-    "start": "node twilio-azure-conversation-relay.js"
+    "start": "node twilio-azure-conversation-relay.js",
+    "dev": "node src/server.js"
   },
   "keywords": [
     "twilio",
@@ -17,18 +18,22 @@
   ],
   "author": "",
   "dependencies": {
-    "@azure/ai-agents": "1.1.0",
     "@azure-rest/core-client": "^2.1.0",
     "@azure/abort-controller": "^2.1.2",
+    "@azure/ai-agents": "1.1.0",
     "@azure/core-auth": "^1.6.0",
-    "@azure/core-rest-pipeline": "^1.5.0",
-    "@azure/core-util": "^1.9.0",
-    "@azure/logger": "^1.1.4",
     "@azure/core-lro": "^3.0.0",
     "@azure/core-paging": "^1.5.0",
+    "@azure/core-rest-pipeline": "^1.5.0",
     "@azure/core-sse": "^2.1.3",
     "@azure/core-tracing": "^1.2.0",
+    "@azure/core-util": "^1.9.0",
     "@azure/identity": "^4.10.2",
-    "dotenv": "^17.2.1"
+    "@azure/logger": "^1.1.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "twilio": "^5.10.6",
+    "ws": "^8.18.3"
   }
 }
