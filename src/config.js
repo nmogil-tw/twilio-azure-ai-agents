@@ -69,17 +69,17 @@ if (!isValidWorkflowSid(process.env.TWILIO_WORKFLOW_SID)) {
 export const languageOptions = {
   english: {
     locale_code: 'en-US',
-    ttsProvider: 'google',
-    voice: 'en-US-Journey-O',
-    transcriptionProvider: 'google',
-    speechModel: 'telephony'
+    ttsProvider: process.env.TTS_PROVIDER || 'google',
+    voice: process.env.TTS_VOICE_EN || 'en-US-Journey-O',
+    transcriptionProvider: process.env.TRANSCRIPTION_PROVIDER || 'google',
+    speechModel: process.env.SPEECH_MODEL || 'telephony'
   },
   spanish: {
     locale_code: 'es-US',
-    ttsProvider: 'google',
-    voice: 'es-US-Journey-F',
-    transcriptionProvider: 'google',
-    speechModel: 'telephony'
+    ttsProvider: process.env.TTS_PROVIDER || 'google',
+    voice: process.env.TTS_VOICE_ES || 'es-US-Journey-F',
+    transcriptionProvider: process.env.TRANSCRIPTION_PROVIDER || 'google',
+    speechModel: process.env.SPEECH_MODEL || 'telephony'
   }
 };
 

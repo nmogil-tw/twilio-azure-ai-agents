@@ -25,6 +25,7 @@ export async function handleIncomingCall(callData) {
 
     const ngrokDomain = config.ngrok.domain;
     const welcomeGreeting = config.twilio.welcomeGreeting;
+    const languages = config.languages;
 
     // Build TwiML response with ConversationRelay
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -35,8 +36,8 @@ export async function handleIncomingCall(callData) {
       dtmfDetection="true"
       interruptByDtmf="false"
       welcomeGreeting="${escapeXml(welcomeGreeting)}">
-      <Language code="en-US" ttsProvider="google" voice="en-US-Journey-O" transcriptionProvider="google" speechModel="telephony" />
-      <Language code="es-US" ttsProvider="google" voice="es-US-Journey-F" transcriptionProvider="google" speechModel="telephony" />
+      <Language code="${languages.english.locale_code}" ttsProvider="${languages.english.ttsProvider}" voice="${languages.english.voice}" transcriptionProvider="${languages.english.transcriptionProvider}" speechModel="${languages.english.speechModel}" />
+      <Language code="${languages.spanish.locale_code}" ttsProvider="${languages.spanish.ttsProvider}" voice="${languages.spanish.voice}" transcriptionProvider="${languages.spanish.transcriptionProvider}" speechModel="${languages.spanish.speechModel}" />
     </ConversationRelay>
   </Connect>
 </Response>`;
