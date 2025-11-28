@@ -157,6 +157,7 @@ export class AzureAgentService extends EventEmitter {
         .stream();
 
       let firstTokenTime = null;
+      let responseStartTime = null;
 
       let currentMessageContent = '';
 
@@ -228,6 +229,7 @@ export class AzureAgentService extends EventEmitter {
                   // Track time to first token
                   if (!firstTokenTime) {
                     firstTokenTime = Date.now();
+                    responseStartTime = firstTokenTime; // Start tracking response duration
                     const latency = firstTokenTime - startTime;
                     if (config.debug) {
                       console.log(` [${this.sessionId}] ⚡ First token latency: ${latency}ms`);
@@ -248,6 +250,16 @@ export class AzureAgentService extends EventEmitter {
                 console.log(` [${this.sessionId}] Message completed: ${currentMessageContent.substring(0, 100)}...`);
               }
               this.emit('textComplete', currentMessageContent);
+
+              // Log the complete agent response and timing summary
+              if (responseStartTime) {
+                const totalDuration = ((Date.now() - responseStartTime) / 1000).toFixed(1);
+                const firstTokenLatency = firstTokenTime ? firstTokenTime - startTime : 0;
+
+                // Log the complete response
+                console.log(` [${this.sessionId}] Agent: ${currentMessageContent}`);
+                console.log(` [${this.sessionId}] Agent response completed (${currentMessageContent.length} chars, ${totalDuration}s total, ${firstTokenLatency}ms first token)`);
+              }
             }
             break;
 
