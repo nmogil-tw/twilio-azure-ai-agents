@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node context/twilio-azure-conversation-relay.js",
-    "dev": "node src/server.js"
+    "dev": "node src/server.js",
+    "docker:build": "docker build -t twilio-azure-agent:latest .",
+    "docker:run": "docker run --env-file .env -p 3000:3000 twilio-azure-agent:latest",
+    "docker:compose:up": "docker-compose up",
+    "docker:compose:down": "docker-compose down",
+    "docker:compose:build": "docker-compose up --build"
   },
   "keywords": [
     "twilio",

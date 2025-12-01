@@ -54,7 +54,11 @@ validateRequired('AGENT_ID', process.env.AGENT_ID);
 // Validate required Twilio configuration
 validateRequired('TWILIO_ACCOUNT_SID', process.env.TWILIO_ACCOUNT_SID);
 validateRequired('TWILIO_AUTH_TOKEN', process.env.TWILIO_AUTH_TOKEN);
-validateRequired('NGROK_DOMAIN', process.env.NGROK_DOMAIN);
+
+// Validate domain configuration (either PRODUCTION_DOMAIN or NGROK_DOMAIN required)
+if (!process.env.PRODUCTION_DOMAIN && !process.env.NGROK_DOMAIN) {
+  throw new Error('Missing required environment variable: PRODUCTION_DOMAIN or NGROK_DOMAIN (at least one must be set)');
+}
 
 // Validate Twilio SID formats
 if (!isValidTwilioSid(process.env.TWILIO_ACCOUNT_SID)) {
@@ -126,9 +130,11 @@ export const config = {
     intelligenceServiceSid: process.env.TWILIO_INTELLIGENCE_SERVICE_SID || null // Optional: Conversational Intelligence Service SID or Unique Name
   },
 
-  // ngrok Configuration
+  // Domain Configuration (for webhooks and WebSocket)
+  // Supports both PRODUCTION_DOMAIN (production) and NGROK_DOMAIN (development)
+  // PRODUCTION_DOMAIN takes precedence if both are set
   ngrok: {
-    domain: process.env.NGROK_DOMAIN.replace(/^(https?:\/\/|wss?:\/\/)/, '')
+    domain: (process.env.PRODUCTION_DOMAIN || process.env.NGROK_DOMAIN || '').replace(/^(https?:\/\/|wss?:\/\/)/, '')
   },
 
   // Server Configuration

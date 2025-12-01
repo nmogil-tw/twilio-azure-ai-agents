@@ -459,12 +459,118 @@ Twilio webhook for outbound call status updates. Receives status callbacks for c
 
 **Enable debug mode** for verbose logging: `DEBUG=1 npm run dev`
 
-## Production Deployment
+## Docker Deployment
 
-For production:
-- Replace ngrok with a permanent domain and update Twilio webhook URLs
-- Configure environment variables securely (use secrets management, not `.env` files)
-- If scaling horizontally, ensure load balancer uses session affinity (sticky sessions) for WebSocket connections
+This application is Docker-ready with production-optimized containers for easy deployment to cloud platforms.
+
+### Quick Start with Docker Compose
+
+The fastest way to run the application with Docker:
+
+```bash
+# 1. Create your .env file
+cp .env.example .env
+# Edit .env with your credentials and set PRODUCTION_DOMAIN
+
+# 2. Build and run with Docker Compose
+npm run docker:compose:up
+
+# Or use docker-compose directly
+docker-compose up
+```
+
+The application will be available at `http://localhost:3000`.
+
+### Docker Scripts
+
+Convenient npm scripts are provided:
+
+```bash
+npm run docker:build           # Build the Docker image
+npm run docker:run             # Run the container with .env file
+npm run docker:compose:up      # Start with docker-compose
+npm run docker:compose:down    # Stop docker-compose
+npm run docker:compose:build   # Rebuild and start
+```
+
+### Cloud Platform Deployment
+
+Deploy to production on major cloud platforms:
+
+#### AWS ECS Fargate
+```bash
+# Build and push to ECR
+docker tag twilio-azure-agent:latest YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/twilio-azure-agent:latest
+docker push YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/twilio-azure-agent:latest
+
+# Use the provided task definition template
+# See deployment/aws-ecs-task-definition.json
+```
+
+#### Google Cloud Run
+```bash
+# Build and deploy
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/twilio-azure-agent
+gcloud run deploy twilio-azure-agent \
+  --image gcr.io/YOUR_PROJECT/twilio-azure-agent \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars NODE_ENV=production
+```
+
+#### Azure Container Apps
+```bash
+# Build and push to ACR
+az acr build --registry YOUR_REGISTRY --image twilio-azure-agent:latest .
+
+# Deploy to Container Apps
+az containerapp create \
+  --name twilio-azure-agent \
+  --image YOUR_REGISTRY.azurecr.io/twilio-azure-agent:latest
+```
+
+### Production Configuration
+
+For production deployment:
+
+1. **Set PRODUCTION_DOMAIN** instead of NGROK_DOMAIN:
+   ```bash
+   PRODUCTION_DOMAIN=your-app.example.com
+   ```
+
+2. **Use secrets management** (not .env files):
+   - AWS: Secrets Manager + ECS secrets
+   - GCP: Secret Manager + Cloud Run secrets
+   - Azure: Key Vault + Container Apps secrets
+
+3. **Configure SSL/TLS**: All cloud platforms provide automatic SSL
+
+4. **Update Twilio webhooks** to your production domain:
+   ```
+   https://your-app.example.com/api/incoming-call
+   ```
+
+5. **For horizontal scaling**: Use sticky sessions for WebSocket connections (see DEPLOYMENT.md)
+
+### Comprehensive Deployment Guide
+
+For detailed deployment instructions including:
+- Platform-specific configuration templates
+- Environment variable management
+- SSL/TLS setup
+- Monitoring and logging
+- Scaling strategies
+- Troubleshooting
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the complete guide.
+
+### Docker Image Details
+
+- **Base Image**: node:20-alpine (minimal, secure)
+- **Image Size**: ~150MB (optimized multi-stage build)
+- **Security**: Runs as non-root user
+- **Health Check**: Built-in `/health` endpoint monitoring
+- **Port**: Exposes 3000 (configurable via PORT env var)
 
 ## Monitoring
 

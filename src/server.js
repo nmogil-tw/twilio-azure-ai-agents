@@ -95,16 +95,23 @@ server.listen(port, () => {
   console.log('');
 
   if (config.ngrok.domain) {
-    console.log('Webhook URLs (configure in Twilio Console):');
+    // Determine if using production or development domain
+    const isDevelopment = process.env.NGROK_DOMAIN && !process.env.PRODUCTION_DOMAIN;
+    const domainType = isDevelopment ? 'ngrok (development)' : 'production';
+
+    console.log(`Webhook URLs (${domainType}):`);
     console.log(`   Incoming Call: https://${config.ngrok.domain}/api/incoming-call`);
     console.log(`   Connect Action: https://${config.ngrok.domain}/api/action`);
     console.log(`   WebSocket: wss://${config.ngrok.domain}`);
     console.log('');
   } else {
-    console.log('WARNING: NGROK_DOMAIN not configured - you need to:');
-    console.log('   1. Run: ngrok http ' + port);
-    console.log('   2. Add NGROK_DOMAIN to your .env file');
-    console.log('   3. Configure Twilio webhook URLs');
+    console.log('WARNING: No domain configured - you need to:');
+    console.log('   For development:');
+    console.log('     1. Run: ngrok http ' + port);
+    console.log('     2. Add NGROK_DOMAIN to your .env file');
+    console.log('   For production:');
+    console.log('     1. Set PRODUCTION_DOMAIN to your deployed domain');
+    console.log('   Then configure Twilio webhook URLs');
     console.log('');
   }
 

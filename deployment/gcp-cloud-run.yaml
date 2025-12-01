@@ -1,0 +1,103 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: twilio-azure-agent
+  labels:
+    cloud.googleapis.com/location: us-central1
+  annotations:
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Allow websocket connections (important for Twilio Conversation Relay)
+        run.googleapis.com/execution-environment: gen2
+        # Set scaling parameters
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '10'
+        # CPU allocation (always allocated for WebSocket connections)
+        run.googleapis.com/cpu-throttling: 'false'
+    spec:
+      # Configure service account with necessary permissions
+      serviceAccountName: twilio-azure-agent-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+      # Container timeout (max 3600s / 1 hour)
+      timeoutSeconds: 3600
+
+      containers:
+      - name: twilio-azure-agent
+        image: gcr.io/YOUR_PROJECT_ID/twilio-azure-agent:latest
+
+        ports:
+        - name: http1
+          containerPort: 3000
+
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: PORT
+          value: '3000'
+
+        # Load secrets from Google Secret Manager
+        - name: PROJECT_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: azure-project-endpoint
+              key: latest
+        - name: PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-project-id
+              key: latest
+        - name: AGENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-agent-id
+              key: latest
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: twilio-account-sid
+              key: latest
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: twilio-auth-token
+              key: latest
+        - name: PRODUCTION_DOMAIN
+          valueFrom:
+            secretKeyRef:
+              name: production-domain
+              key: latest
+
+        # Resource limits
+        resources:
+          limits:
+            cpu: '1000m'
+            memory: 512Mi
+          requests:
+            cpu: '500m'
+            memory: 256Mi
+
+        # Startup probe
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+  traffic:
+  - percent: 100
+    latestRevision: true

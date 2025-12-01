@@ -1,0 +1,80 @@
+properties:
+  managedEnvironmentId: /subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP/providers/Microsoft.App/managedEnvironments/YOUR_ENVIRONMENT
+  configuration:
+    ingress:
+      external: true
+      targetPort: 3000
+      transport: auto
+      allowInsecure: false
+      traffic:
+        - weight: 100
+          latestRevision: true
+    secrets:
+      - name: azure-project-endpoint
+        value: YOUR_PROJECT_ENDPOINT
+      - name: azure-project-id
+        value: YOUR_PROJECT_ID
+      - name: azure-agent-id
+        value: YOUR_AGENT_ID
+      - name: twilio-account-sid
+        value: YOUR_TWILIO_ACCOUNT_SID
+      - name: twilio-auth-token
+        value: YOUR_TWILIO_AUTH_TOKEN
+      - name: production-domain
+        value: YOUR_PRODUCTION_DOMAIN
+    registries:
+      - server: YOUR_REGISTRY.azurecr.io
+        username: YOUR_REGISTRY_USERNAME
+        passwordSecretRef: registry-password
+  template:
+    containers:
+      - name: twilio-azure-agent
+        image: YOUR_REGISTRY.azurecr.io/twilio-azure-agent:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: NODE_ENV
+            value: production
+          - name: PORT
+            value: '3000'
+          - name: PROJECT_ENDPOINT
+            secretRef: azure-project-endpoint
+          - name: PROJECT_ID
+            secretRef: azure-project-id
+          - name: AGENT_ID
+            secretRef: azure-agent-id
+          - name: TWILIO_ACCOUNT_SID
+            secretRef: twilio-account-sid
+          - name: TWILIO_AUTH_TOKEN
+            secretRef: twilio-auth-token
+          - name: PRODUCTION_DOMAIN
+            secretRef: production-domain
+        probes:
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+    scale:
+      minReplicas: 1
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: '50'
+location: eastus
+tags:
+  application: twilio-azure-agent
+  environment: production
