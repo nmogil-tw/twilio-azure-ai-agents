@@ -33,7 +33,7 @@ A production-ready Node.js implementation demonstrating how to integrate Twilio 
 Start the CLI with:
 
 ```sh
-node twilio-azure-conversation-relay.js
+node context/twilio-azure-conversation-relay.js
 ```
 
 The CLI provides an interactive chat interface with the following features:
@@ -57,8 +57,10 @@ The CLI provides an interactive chat interface with the following features:
 Enable detailed logging by setting the `DEBUG` environment variable:
 
 ```sh
-DEBUG=1 node twilio-azure-conversation-relay.js
+DEBUG=1 node context/twilio-azure-conversation-relay.js
 ```
+
+**Note:** For voice integration with phone calls, see the [Voice Server Mode](#voice-server-mode---twilio-conversation-relay) section below. Run with `npm run dev`.
 
 ## Features
 
@@ -112,26 +114,11 @@ The voice server provides full phone integration with your Azure AI Agent, allow
 
 ### 1. Configure Environment Variables
 
-Copy `.env.example` to `.env` and fill in the required variables:
-
-```bash
-# Azure AI Configuration (already set up for CLI)
-PROJECT_ENDPOINT=https://your-project.services.ai.azure.com
-PROJECT_ID=your_project_id
-AGENT_ID=your_agent_id
-
-# Twilio Configuration (new for voice server)
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your_auth_token
-TWILIO_WORKFLOW_SID=WWxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_PHONE_NUMBER=+15551234567  # Optional: for outbound calling
-NGROK_DOMAIN=your-subdomain.ngrok.app
-WELCOME_GREETING="Hello! I'm your AI assistant. How can I help you today?"
-
-# Server Configuration
-PORT=3000
-DEBUG=1
-```
+Copy `.env.example` to `.env` and fill in the required variables. See `.env.example` for detailed descriptions of all configuration options including:
+- Azure AI credentials (PROJECT_ENDPOINT, PROJECT_ID, AGENT_ID)
+- Twilio credentials (ACCOUNT_SID, AUTH_TOKEN)
+- ngrok domain for local development
+- Optional features (outbound calling, human agent handoff, conversation analytics)
 
 ### 2. Start ngrok
 
@@ -316,6 +303,22 @@ await callCustomer('+14155551212');
 - **Alerts** - Notify users of important events or updates
 - **Customer support** - Proactive outreach for unresolved issues
 
+## Conversational Intelligence (Optional)
+
+**Optional** integration with Twilio Conversational Intelligence for AI agent observability and analytics. Automatically captures transcripts, enables post-call analysis, and provides conversation insights for quality assurance and compliance.
+
+### Setup
+
+1. In Twilio Console, navigate to **Conversational Intelligence > Services**
+2. Create a service and copy the Service SID (starts with `GA`)
+3. Add to `.env`:
+   ```bash
+   TWILIO_INTELLIGENCE_SERVICE_SID=GAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+4. Restart the server - all calls (inbound, outbound, reconnections) will be tracked automatically
+
+Access data via Twilio Console or Intelligence API. May incur additional Twilio charges. [Documentation](https://www.twilio.com/docs/voice/twiml/connect/conversationrelay/intelligence)
+
 ## Architecture
 
 ### Directory Structure
@@ -446,61 +449,22 @@ Twilio webhook for outbound call status updates. Receives status callbacks for c
 
 ## Troubleshooting
 
-### Common Issues
+**ngrok/webhook errors** - Verify ngrok is running and `NGROK_DOMAIN` in `.env` matches your ngrok URL
 
-**1. "Missing required environment variable"**
-- Ensure all required variables are set in `.env`
-- Check for typos in variable names
+**No audio or garbled speech** - Check Azure agent configuration and verify language codes in `src/config.js`
 
-**2. "Connection refused" or webhook errors**
-- Verify ngrok is running
-- Check that `NGROK_DOMAIN` matches your ngrok URL
-- Ensure Twilio webhook URL is correct
+**Agent doesn't respond** - Verify Azure credentials (`az login`) and `AGENT_ID`. Enable `DEBUG=1` for detailed logs
 
-**3. No audio or garbled speech**
-- Check your Azure agent configuration
-- Verify language codes in `config.js` match your needs
-- Test with different TTS providers if needed
+**DTMF input not working** - Check idle timer timeout (default 10 seconds) and look for timeout messages in logs
 
-**4. Agent doesn't respond**
-- Check Azure credentials are valid (`az login`)
-- Verify `AGENT_ID` is correct
-- Enable `DEBUG=1` to see detailed logs
-
-**5. DTMF input not working**
-- Ensure `dtmfDetection="true"` in TwiML
-- Check idle timer timeout (default 10 seconds)
-- Look for timeout messages in logs
-
-### Debug Mode
-
-Enable verbose logging:
-
-```bash
-DEBUG=1 npm run dev
-```
-
-This will show:
-- All WebSocket messages
-- Azure AI SDK events
-- DTMF state transitions
-- Tool call details
-- Session management events
+**Enable debug mode** for verbose logging: `DEBUG=1 npm run dev`
 
 ## Production Deployment
 
-For production deployment:
-
-1. **Use a permanent domain** instead of ngrok
-2. **Enable HTTPS** with valid SSL certificates
-3. **Set up monitoring** and error alerting
-4. **Configure environment variables** securely (not in `.env` files)
-5. **Use process manager** (PM2, Docker, or cloud platform)
-6. **Scale horizontally** with load balancer and session affinity
-7. **Implement rate limiting** and request validation
-8. **Add authentication** to webhook endpoints
-9. **Set up logging** to external service (CloudWatch, Application Insights)
-10. **Consider Redis** for distributed state management
+For production:
+- Replace ngrok with a permanent domain and update Twilio webhook URLs
+- Configure environment variables securely (use secrets management, not `.env` files)
+- If scaling horizontally, ensure load balancer uses session affinity (sticky sessions) for WebSocket connections
 
 ## Monitoring
 
@@ -521,13 +485,7 @@ Monitor these logs to understand usage patterns and troubleshoot issues.
 4. Customize DTMF behavior in `src/services/dtmfHelper.js`
 5. Set up outbound calling by adding `TWILIO_PHONE_NUMBER` to `.env`
 6. Integrate outbound calling API into your application for automated calls
-7. Add custom middleware or authentication
-8. Integrate with your CRM or database
-9. Set up production deployment
-
-## Running Both Modes
-
-- **CLI Mode**: `npm start` (test your agent via command line)
-- **Voice Server**: `npm run dev` (handle phone calls)
-
-Both modes use the same Azure AI agent and configuration!
+7. Enable Conversational Intelligence for conversation analytics and AI agent observability
+8. Add custom middleware or authentication
+9. Integrate with your CRM or database
+10. Set up production deployment

@@ -54,7 +54,6 @@ validateRequired('AGENT_ID', process.env.AGENT_ID);
 // Validate required Twilio configuration
 validateRequired('TWILIO_ACCOUNT_SID', process.env.TWILIO_ACCOUNT_SID);
 validateRequired('TWILIO_AUTH_TOKEN', process.env.TWILIO_AUTH_TOKEN);
-validateRequired('TWILIO_WORKFLOW_SID', process.env.TWILIO_WORKFLOW_SID);
 validateRequired('NGROK_DOMAIN', process.env.NGROK_DOMAIN);
 
 // Validate Twilio SID formats
@@ -62,7 +61,8 @@ if (!isValidTwilioSid(process.env.TWILIO_ACCOUNT_SID)) {
   console.warn('WARNING: TWILIO_ACCOUNT_SID format looks incorrect (should start with AC and be 34 chars)');
 }
 
-if (!isValidWorkflowSid(process.env.TWILIO_WORKFLOW_SID)) {
+// Validate Workflow SID only if provided (optional - only needed for human agent handoff)
+if (process.env.TWILIO_WORKFLOW_SID && !isValidWorkflowSid(process.env.TWILIO_WORKFLOW_SID)) {
   console.warn('WARNING: TWILIO_WORKFLOW_SID format looks incorrect (should start with WW and be 34 chars)');
 }
 

@@ -5,7 +5,7 @@
   "main": "twilio-azure-conversation-relay.js",
   "type": "module",
   "scripts": {
-    "start": "node twilio-azure-conversation-relay.js",
+    "start": "node context/twilio-azure-conversation-relay.js",
     "dev": "node src/server.js"
   },
   "keywords": [
