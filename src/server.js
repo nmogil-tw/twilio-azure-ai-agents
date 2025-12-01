@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { initializeWebSocketHandlers } from './services/websocketService.js';
 import callRoutes from './routes/callRoutes.js';
 import connectActionRoutes from './routes/connectActionRoutes.js';
+import outboundCallRoutes from './routes/outboundCallRoutes.js';
 
 // Create Express app
 const app = express();
@@ -36,6 +37,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api', callRoutes);
 app.use('/api', connectActionRoutes);
+app.use('/api/outbound', outboundCallRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -46,6 +48,9 @@ app.get('/', (req, res) => {
       health: '/health',
       incomingCall: 'POST /api/incoming-call',
       connectAction: 'POST /api/action',
+      outboundInitiate: 'POST /api/outbound/initiate',
+      outboundTwiml: 'POST /api/outbound/twiml',
+      outboundStatus: 'POST /api/outbound/status',
       websocket: 'wss://' + (config.ngrok.domain || 'localhost:' + port)
     }
   });

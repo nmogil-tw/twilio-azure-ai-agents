@@ -78,6 +78,7 @@ The voice server provides full phone integration with your Azure AI Agent, allow
 
 ### Core Capabilities
 - **Real-time voice conversation** - Bidirectional voice communication with streaming responses
+- **Inbound & outbound calling** - Handle incoming calls and programmatically initiate outbound calls via API
 - **DTMF input handling** - Support for keypad input (phone number collection, menu selections, language switching)
 - **Dynamic language switching** - Support for multiple languages (English, Spanish) during calls
 - **Human agent handoff** - Seamless transfer to live agents via Twilio Flex/TaskRouter
@@ -123,6 +124,7 @@ AGENT_ID=your_agent_id
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_WORKFLOW_SID=WWxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_PHONE_NUMBER=+15551234567  # Optional: for outbound calling
 NGROK_DOMAIN=your-subdomain.ngrok.app
 WELCOME_GREETING="Hello! I'm your AI assistant. How can I help you today?"
 
@@ -226,6 +228,94 @@ If your Azure agent calls a handoff tool/function, the server will automatically
 2. Pass conversation context and summary to the human agent
 3. Enqueue the caller for the next available agent
 
+## Outbound Calling
+
+The voice server now supports **outbound calling**, allowing you to programmatically initiate phone calls to users via API. Outbound calls use the same Azure AI agent and WebSocket infrastructure as inbound calls.
+
+### Configuration
+
+Add your Twilio phone number to `.env` (optional, can also be provided per-call):
+
+```bash
+TWILIO_PHONE_NUMBER=+15551234567
+```
+
+### Making Outbound Calls
+
+**Initiate a call via API:**
+
+```bash
+curl -X POST https://your-subdomain.ngrok.app/api/outbound/initiate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+14155551212",
+    "from": "+15551234567"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "callSid": "CAxxxxxxxxxxxxxxxxxxxxx",
+  "status": "queued",
+  "to": "+14155551212",
+  "from": "+15551234567",
+  "direction": "outbound-api"
+}
+```
+
+### How Outbound Calls Work
+
+1. **API Request** - Your application calls `/api/outbound/initiate` with phone numbers
+2. **Twilio Creates Call** - Twilio REST API initiates the call to the recipient
+3. **TwiML Request** - When answered, Twilio requests TwiML from `/api/outbound/twiml`
+4. **ConversationRelay** - TwiML establishes WebSocket connection (identical to inbound)
+5. **Azure Agent** - Your AI agent handles the conversation with the same capabilities as inbound calls
+6. **Status Updates** - Twilio posts status updates to `/api/outbound/status`
+
+### Outbound Call Features
+
+Outbound calls support **all the same features** as inbound calls:
+- Real-time voice conversation with streaming responses
+- DTMF input handling
+- Language switching
+- Human agent handoff
+- Automatic reconnection
+- Session state management
+
+### Integration Example
+
+```javascript
+// Example: Trigger an outbound call from your application
+async function callCustomer(customerPhone) {
+  const response = await fetch('https://your-domain.ngrok.app/api/outbound/initiate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to: customerPhone,
+      from: process.env.TWILIO_PHONE_NUMBER
+    })
+  });
+
+  const result = await response.json();
+  console.log('Call initiated:', result.callSid);
+  return result;
+}
+
+// Call a customer for appointment reminder
+await callCustomer('+14155551212');
+```
+
+### Use Cases
+
+- **Appointment reminders** - Automated reminder calls before appointments
+- **Order notifications** - Call customers about order status changes
+- **Surveys** - Conduct automated phone surveys
+- **Lead follow-up** - Reach out to new leads automatically
+- **Alerts** - Notify users of important events or updates
+- **Customer support** - Proactive outreach for unresolved issues
+
 ## Architecture
 
 ### Directory Structure
@@ -239,15 +329,18 @@ src/
  controllers/
     callController.js         # Handles incoming call webhooks
     connectActionController.js # Handles call completion/handoff
+    outboundCallController.js # Handles outbound call initiation
  routes/
     callRoutes.js             # /api/incoming-call endpoint
     connectActionRoutes.js    # /api/action endpoint
+    outboundCallRoutes.js     # /api/outbound/* endpoints
  services/
      azureAgentService.js      # Azure AI Agents SDK wrapper
      websocketService.js       # WebSocket message handling
      stateManager.js           # Session state persistence
      dtmfHelper.js             # DTMF input state machine
      idleTimer.js              # Timeout handling
+     twilioClient.js           # Twilio REST API client
 ```
 
 ### Message Flow
@@ -312,6 +405,44 @@ Twilio webhook for call completion. Handles:
 - Normal call termination
 - WebSocket reconnection (error 64105)
 - Human agent handoff
+
+### Outbound Call - Initiate
+```
+POST /api/outbound/initiate
+```
+API endpoint to programmatically initiate outbound calls.
+
+**Request Body:**
+```json
+{
+  "to": "+14155551212",
+  "from": "+15551234567"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "callSid": "CAxxxxxxxxxxxxxxxxxxxxx",
+  "status": "queued",
+  "to": "+14155551212",
+  "from": "+15551234567",
+  "direction": "outbound-api"
+}
+```
+
+### Outbound Call - TwiML
+```
+POST /api/outbound/twiml
+```
+Twilio webhook for outbound calls. Returns TwiML to establish ConversationRelay connection (identical to inbound calls).
+
+### Outbound Call - Status
+```
+POST /api/outbound/status
+```
+Twilio webhook for outbound call status updates. Receives status callbacks for call events (initiated, ringing, answered, completed).
 
 ## Troubleshooting
 
@@ -388,9 +519,11 @@ Monitor these logs to understand usage patterns and troubleshoot issues.
 2. Configure your Azure agent with custom tools/functions
 3. Adjust language options in `src/config.js`
 4. Customize DTMF behavior in `src/services/dtmfHelper.js`
-5. Add custom middleware or authentication
-6. Integrate with your CRM or database
-7. Set up production deployment
+5. Set up outbound calling by adding `TWILIO_PHONE_NUMBER` to `.env`
+6. Integrate outbound calling API into your application for automated calls
+7. Add custom middleware or authentication
+8. Integrate with your CRM or database
+9. Set up production deployment
 
 ## Running Both Modes
 

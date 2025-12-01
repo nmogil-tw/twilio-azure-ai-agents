@@ -103,6 +103,7 @@ export const config = {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     workflowSid: process.env.TWILIO_WORKFLOW_SID,
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER, // Optional: default phone number for outbound calls
     welcomeGreeting: process.env.WELCOME_GREETING || "Hello! I'm your AI assistant. How can I help you today?"
   },
 
