@@ -4,6 +4,7 @@ import { DTMFHelper } from './dtmfHelper.js';
 import { IdleTimer } from './idleTimer.js';
 import { StateManager } from './stateManager.js';
 import { config } from '../config.js';
+import logger, { createSessionLogger } from '../utils/logger.js';
 
 /**
  * @typedef {import('../types/index.js').ConversationRelayMessage} ConversationRelayMessage
@@ -43,12 +44,16 @@ export function initializeWebSocketHandlers(wss) {
     /** @type {string} */
     let currentSessionId = '';
 
+    /** @type {import('pino').Logger | null} */
+    let sessionLogger = null;
+
     /**
      * Initialize or restore a session
      * @param {string} sessionId - Session identifier (callSid)
      */
     const initializeSession = async (sessionId) => {
       currentSessionId = sessionId;
+      sessionLogger = createSessionLogger(sessionId);
 
       // Check if we have an existing session to restore
       const existingSession = activeSessions.get(sessionId);
@@ -84,11 +89,16 @@ export function initializeWebSocketHandlers(wss) {
             console.error(` [${sessionId}] Error adding reconnection notice:`, error);
           }
         } else {
-          // Create new thread for new session
-          await agentService.createThread({
+          // Create new thread eagerly (non-blocking for faster setup acknowledgment)
+          // Thread will be awaited automatically in processMessage if first message arrives before creation completes
+          agentService.createThread({
             source: 'twilio-conversation-relay',
             startTime: new Date().toISOString()
+          }).catch(error => {
+            console.error(` [${sessionId}] Error creating thread:`, error);
           });
+
+          console.log(` [${sessionId}] Thread creation started (eager initialization)`);
         }
 
         // Store session
@@ -113,10 +123,11 @@ export function initializeWebSocketHandlers(wss) {
 
       // Agent Service Event Listeners
 
-      // Handle text streaming (partial content)
+      // Handle text streaming (partial content) - CRITICAL HOT PATH
       agentService.on('textDelta', (token) => {
-        if (config.debug) {
-          console.log(` [${currentSessionId}] Text delta: ${token}`);
+        // Use async logging to avoid blocking the hot path
+        if (config.debug && sessionLogger) {
+          sessionLogger.debug({ token }, 'Text delta');
         }
 
         ws.send(JSON.stringify({
@@ -128,8 +139,8 @@ export function initializeWebSocketHandlers(wss) {
 
       // Handle complete text
       agentService.on('textComplete', (content) => {
-        if (config.debug) {
-          console.log(` [${currentSessionId}] Text complete: ${content.substring(0, 100)}...`);
+        if (config.debug && sessionLogger) {
+          sessionLogger.debug({ preview: content.substring(0, 100) }, 'Text complete');
         }
 
         ws.send(JSON.stringify({
@@ -142,8 +153,8 @@ export function initializeWebSocketHandlers(wss) {
       // Handle agent thinking/processing
       agentService.on('thinking', () => {
         // Could send a message to indicate processing, if desired
-        if (config.debug) {
-          console.log(` [${currentSessionId}] Agent is thinking...`);
+        if (config.debug && sessionLogger) {
+          sessionLogger.debug('Agent is thinking...');
         }
       });
 

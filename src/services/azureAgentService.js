@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { AgentsClient } from '@azure/ai-agents';
 import { DefaultAzureCredential } from '@azure/identity';
 import { config } from '../config.js';
+import { createSessionLogger } from '../utils/logger.js';
 
 /**
  * Azure Agent Service
@@ -19,6 +20,11 @@ import { config } from '../config.js';
  * - 'handoff': Human agent handoff requested (data: Object)
  */
 export class AzureAgentService extends EventEmitter {
+  // Shared client instance across all sessions (connection pooling)
+  static _sharedClient = null;
+  static _clientInitialized = false;
+  static _initializationPromise = null;
+
   /**
    * @param {string} sessionId - Unique session identifier (callSid)
    */
@@ -29,32 +35,67 @@ export class AzureAgentService extends EventEmitter {
     this.client = null;
     this.currentStreamController = null;
     this.isStreaming = false;
+    this._initPromise = null;
+    this.logger = createSessionLogger(sessionId);
 
-    this._initialize();
+    // Start initialization but don't await (constructors can't be async)
+    this._initPromise = this._initialize();
   }
 
   /**
-   * Initialize Azure AI Agents client
+   * Ensure client is initialized before use
    * @private
    */
-  _initialize() {
+  async _ensureInitialized() {
+    if (this._initPromise) {
+      await this._initPromise;
+      this._initPromise = null;
+    }
+  }
+
+  /**
+   * Initialize or reuse shared Azure AI Agents client (connection pooling)
+   * @private
+   */
+  async _initialize() {
     try {
-      // Construct the full endpoint URL
-      const fullEndpoint = `${config.azure.projectEndpoint}/api/projects/${config.azure.projectId}`;
-
-      // Create credential (supports az login, service principal, managed identity, etc.)
-      const credential = new DefaultAzureCredential();
-
-      // Initialize the client
-      this.client = new AgentsClient(fullEndpoint, credential);
-
-      if (config.debug) {
-        console.log(` [${this.sessionId}] Azure Agent Service initialized`);
-        console.log(`   Endpoint: ${fullEndpoint}`);
-        console.log(`   Agent ID: ${config.azure.agentId}`);
+      // Use shared client if already initialized
+      if (AzureAgentService._clientInitialized) {
+        this.client = AzureAgentService._sharedClient;
+        if (config.debug) {
+          console.log(` [${this.sessionId}] Azure Agent Service using shared client (connection pooling)`);
+        }
+        return;
       }
+
+      // If initialization is already in progress, wait for it
+      if (AzureAgentService._initializationPromise) {
+        await AzureAgentService._initializationPromise;
+        this.client = AzureAgentService._sharedClient;
+        return;
+      }
+
+      // Start initialization (singleton pattern)
+      AzureAgentService._initializationPromise = (async () => {
+        const fullEndpoint = `${config.azure.projectEndpoint}/api/projects/${config.azure.projectId}`;
+        const credential = new DefaultAzureCredential();
+        const client = new AgentsClient(fullEndpoint, credential);
+
+        AzureAgentService._sharedClient = client;
+        AzureAgentService._clientInitialized = true;
+
+        if (config.debug) {
+          console.log(` [${this.sessionId}] Azure Agent Service initialized (shared client created)`);
+          console.log(`   Endpoint: ${fullEndpoint}`);
+          console.log(`   Agent ID: ${config.azure.agentId}`);
+        }
+      })();
+
+      await AzureAgentService._initializationPromise;
+      this.client = AzureAgentService._sharedClient;
     } catch (error) {
       console.error(` [${this.sessionId}] Failed to initialize Azure Agent Service:`, error);
+      AzureAgentService._initializationPromise = null;
       this.emit('error', error);
       throw error;
     }
@@ -66,6 +107,8 @@ export class AzureAgentService extends EventEmitter {
    * @returns {Promise<string>} Thread ID
    */
   async createThread(metadata = {}) {
+    await this._ensureInitialized();
+
     try {
       if (config.debug) {
         console.log(` [${this.sessionId}] Creating new thread...`);
@@ -111,6 +154,8 @@ export class AzureAgentService extends EventEmitter {
    * @returns {Promise<Object>} Message object
    */
   async addMessage(content) {
+    await this._ensureInitialized();
+
     if (!this.threadId) {
       throw new Error('Thread ID not set. Call createThread() first.');
     }
@@ -137,6 +182,8 @@ export class AzureAgentService extends EventEmitter {
    * @returns {Promise<void>}
    */
   async streamResponse() {
+    await this._ensureInitialized();
+
     if (!this.threadId) {
       throw new Error('Thread ID not set. Call createThread() first.');
     }
@@ -165,15 +212,12 @@ export class AzureAgentService extends EventEmitter {
       for await (const event of stream) {
         // Check if streaming was interrupted
         if (!this.isStreaming) {
-          if (config.debug) {
-            console.log(` [${this.sessionId}] Stream interrupted by user`);
-          }
+          this.logger.debug('Stream interrupted by user');
           break;
         }
 
         if (config.debug) {
-          console.log(` [${this.sessionId}] Event: ${event.event}`,
-            event.data?.status || event.data?.delta?.content || '');
+          this.logger.debug({ event: event.event, data: event.data?.status || event.data?.delta?.content || '' }, 'Stream event');
         }
 
         switch (event.event) {
@@ -190,8 +234,10 @@ export class AzureAgentService extends EventEmitter {
             if (event.data?.required_action?.submit_tool_outputs?.tool_calls) {
               for (const toolCall of event.data.required_action.submit_tool_outputs.tool_calls) {
                 if (config.debug) {
-                  console.log(` [${this.sessionId}] Tool call: ${toolCall.function?.name}`);
-                  console.log(`   Arguments:`, toolCall.function?.arguments);
+                  this.logger.debug({
+                    tool: toolCall.function?.name,
+                    arguments: toolCall.function?.arguments
+                  }, 'Tool call');
                 }
 
                 this.emit('toolCall', {
@@ -231,9 +277,7 @@ export class AzureAgentService extends EventEmitter {
                     firstTokenTime = Date.now();
                     responseStartTime = firstTokenTime; // Start tracking response duration
                     const latency = firstTokenTime - startTime;
-                    if (config.debug) {
-                      console.log(` [${this.sessionId}] ⚡ First token latency: ${latency}ms`);
-                    }
+                    this.logger.info({ latency: `${latency}ms` }, '⚡ First token latency');
                   }
 
                   // Emit each token for real-time streaming
@@ -246,9 +290,7 @@ export class AzureAgentService extends EventEmitter {
           case 'thread.message.completed':
             // Message complete
             if (currentMessageContent) {
-              if (config.debug) {
-                console.log(` [${this.sessionId}] Message completed: ${currentMessageContent.substring(0, 100)}...`);
-              }
+              this.logger.debug({ preview: currentMessageContent.substring(0, 100) }, 'Message completed');
               this.emit('textComplete', currentMessageContent);
 
               // Log the complete agent response and timing summary
@@ -256,18 +298,20 @@ export class AzureAgentService extends EventEmitter {
                 const totalDuration = ((Date.now() - responseStartTime) / 1000).toFixed(1);
                 const firstTokenLatency = firstTokenTime ? firstTokenTime - startTime : 0;
 
-                // Log the complete response
+                // Log the complete response (keep console.log for important conversation log)
                 console.log(` [${this.sessionId}] Agent: ${currentMessageContent}`);
-                console.log(` [${this.sessionId}] Agent response completed (${currentMessageContent.length} chars, ${totalDuration}s total, ${firstTokenLatency}ms first token)`);
+                this.logger.info({
+                  chars: currentMessageContent.length,
+                  totalDuration: `${totalDuration}s`,
+                  firstTokenLatency: `${firstTokenLatency}ms`
+                }, 'Agent response completed');
               }
             }
             break;
 
           case 'thread.run.completed':
             // Run completed successfully
-            if (config.debug) {
-              console.log(` [${this.sessionId}] Run completed`);
-            }
+            this.logger.debug('Run completed');
             this.emit('runComplete');
             break;
 
