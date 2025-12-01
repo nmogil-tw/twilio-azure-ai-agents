@@ -4,7 +4,6 @@ import { DTMFHelper } from './dtmfHelper.js';
 import { IdleTimer } from './idleTimer.js';
 import { StateManager } from './stateManager.js';
 import { config } from '../config.js';
-import logger, { createSessionLogger } from '../utils/logger.js';
 
 /**
  * @typedef {import('../types/index.js').ConversationRelayMessage} ConversationRelayMessage
@@ -44,16 +43,12 @@ export function initializeWebSocketHandlers(wss) {
     /** @type {string} */
     let currentSessionId = '';
 
-    /** @type {import('pino').Logger | null} */
-    let sessionLogger = null;
-
     /**
      * Initialize or restore a session
      * @param {string} sessionId - Session identifier (callSid)
      */
     const initializeSession = async (sessionId) => {
       currentSessionId = sessionId;
-      sessionLogger = createSessionLogger(sessionId);
 
       // Check if we have an existing session to restore
       const existingSession = activeSessions.get(sessionId);
@@ -126,8 +121,8 @@ export function initializeWebSocketHandlers(wss) {
       // Handle text streaming (partial content) - CRITICAL HOT PATH
       agentService.on('textDelta', (token) => {
         // Use async logging to avoid blocking the hot path
-        if (config.debug && sessionLogger) {
-          sessionLogger.debug({ token }, 'Text delta');
+        if (config.debug) {
+          console.log(` [${currentSessionId}] Text delta: ${token}`);
         }
 
         ws.send(JSON.stringify({
@@ -139,8 +134,8 @@ export function initializeWebSocketHandlers(wss) {
 
       // Handle complete text
       agentService.on('textComplete', (content) => {
-        if (config.debug && sessionLogger) {
-          sessionLogger.debug({ preview: content.substring(0, 100) }, 'Text complete');
+        if (config.debug) {
+          console.log(` [${currentSessionId}] Text complete (preview): ${content.substring(0, 100)}`);
         }
 
         ws.send(JSON.stringify({
@@ -153,8 +148,8 @@ export function initializeWebSocketHandlers(wss) {
       // Handle agent thinking/processing
       agentService.on('thinking', () => {
         // Could send a message to indicate processing, if desired
-        if (config.debug && sessionLogger) {
-          sessionLogger.debug('Agent is thinking...');
+        if (config.debug) {
+          console.log(` [${currentSessionId}] Agent is thinking...`);
         }
       });
 
@@ -164,23 +159,10 @@ export function initializeWebSocketHandlers(wss) {
         // Tools are handled by Azure, just log for visibility
       });
 
-      // Handle language switch
+      // Handle language switch (simplified - only English supported)
       agentService.on('languageSwitch', (data) => {
-        const targetLanguage = data.targetLanguage;
-        const languageConfig = config.languages[targetLanguage];
-
-        if (!languageConfig) {
-          console.error(` [${currentSessionId}] Language not supported: ${targetLanguage}`);
-          return;
-        }
-
-        console.log(` [${currentSessionId}] Switching language to: ${targetLanguage}`);
-
-        ws.send(JSON.stringify({
-          type: 'language',
-          ttsLanguage: languageConfig.locale_code,
-          transcriptionLanguage: languageConfig.locale_code
-        }));
+        console.log(` [${currentSessionId}] Language switch requested but only English is supported in this demo`);
+        // No action needed - already using English
       });
 
       // Handle human agent handoff

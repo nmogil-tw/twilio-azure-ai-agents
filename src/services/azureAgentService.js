@@ -2,7 +2,6 @@ import { EventEmitter } from 'events';
 import { AgentsClient } from '@azure/ai-agents';
 import { DefaultAzureCredential } from '@azure/identity';
 import { config } from '../config.js';
-import { createSessionLogger } from '../utils/logger.js';
 
 /**
  * Azure Agent Service
@@ -36,7 +35,6 @@ export class AzureAgentService extends EventEmitter {
     this.currentStreamController = null;
     this.isStreaming = false;
     this._initPromise = null;
-    this.logger = createSessionLogger(sessionId);
 
     // Start initialization but don't await (constructors can't be async)
     this._initPromise = this._initialize();
@@ -212,12 +210,14 @@ export class AzureAgentService extends EventEmitter {
       for await (const event of stream) {
         // Check if streaming was interrupted
         if (!this.isStreaming) {
-          this.logger.debug('Stream interrupted by user');
+          if (config.debug) {
+            console.log(` [${this.sessionId}] Stream interrupted by user`);
+          }
           break;
         }
 
         if (config.debug) {
-          this.logger.debug({ event: event.event, data: event.data?.status || event.data?.delta?.content || '' }, 'Stream event');
+          console.log(` [${this.sessionId}] Stream event: ${event.event}`);
         }
 
         switch (event.event) {
@@ -234,10 +234,7 @@ export class AzureAgentService extends EventEmitter {
             if (event.data?.required_action?.submit_tool_outputs?.tool_calls) {
               for (const toolCall of event.data.required_action.submit_tool_outputs.tool_calls) {
                 if (config.debug) {
-                  this.logger.debug({
-                    tool: toolCall.function?.name,
-                    arguments: toolCall.function?.arguments
-                  }, 'Tool call');
+                  console.log(` [${this.sessionId}] Tool call: ${toolCall.function?.name}`);
                 }
 
                 this.emit('toolCall', {
@@ -277,7 +274,7 @@ export class AzureAgentService extends EventEmitter {
                     firstTokenTime = Date.now();
                     responseStartTime = firstTokenTime; // Start tracking response duration
                     const latency = firstTokenTime - startTime;
-                    this.logger.info({ latency: `${latency}ms` }, '⚡ First token latency');
+                    console.log(` [${this.sessionId}] ⚡ First token latency: ${latency}ms`);
                   }
 
                   // Emit each token for real-time streaming
@@ -290,7 +287,9 @@ export class AzureAgentService extends EventEmitter {
           case 'thread.message.completed':
             // Message complete
             if (currentMessageContent) {
-              this.logger.debug({ preview: currentMessageContent.substring(0, 100) }, 'Message completed');
+              if (config.debug) {
+                console.log(` [${this.sessionId}] Message completed (preview): ${currentMessageContent.substring(0, 100)}`);
+              }
               this.emit('textComplete', currentMessageContent);
 
               // Log the complete agent response and timing summary
@@ -300,18 +299,16 @@ export class AzureAgentService extends EventEmitter {
 
                 // Log the complete response (keep console.log for important conversation log)
                 console.log(` [${this.sessionId}] Agent: ${currentMessageContent}`);
-                this.logger.info({
-                  chars: currentMessageContent.length,
-                  totalDuration: `${totalDuration}s`,
-                  firstTokenLatency: `${firstTokenLatency}ms`
-                }, 'Agent response completed');
+                console.log(` [${this.sessionId}] Response completed - ${currentMessageContent.length} chars in ${totalDuration}s (first token: ${firstTokenLatency}ms)`);
               }
             }
             break;
 
           case 'thread.run.completed':
             // Run completed successfully
-            this.logger.debug('Run completed');
+            if (config.debug) {
+              console.log(` [${this.sessionId}] Run completed`);
+            }
             this.emit('runComplete');
             break;
 

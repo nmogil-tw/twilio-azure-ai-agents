@@ -26,7 +26,7 @@ export async function handleConnectAction(actionPayload) {
       console.log(' WebSocket ended abruptly (likely network issue), attempting reconnection...');
 
       const ngrokDomain = config.ngrok.domain;
-      const languages = config.languages;
+      const language = config.language;
       const intelligenceServiceSid = config.twilio.intelligenceServiceSid;
 
       // Build intelligenceService attribute if configured
@@ -42,8 +42,7 @@ export async function handleConnectAction(actionPayload) {
       url="wss://${ngrokDomain}"
       dtmfDetection="true"
       interruptByDtmf="false"${intelligenceAttr ? `\n      ${intelligenceAttr}` : ''}>
-      <Language code="${languages.english.locale_code}" ttsProvider="${languages.english.ttsProvider}" voice="${languages.english.voice}" transcriptionProvider="${languages.english.transcriptionProvider}" speechModel="${languages.english.speechModel}" />
-      <Language code="${languages.spanish.locale_code}" ttsProvider="${languages.spanish.ttsProvider}" voice="${languages.spanish.voice}" transcriptionProvider="${languages.spanish.transcriptionProvider}" speechModel="${languages.spanish.speechModel}" />
+      <Language code="${language.locale_code}" ttsProvider="${language.ttsProvider}" voice="${language.voice}" transcriptionProvider="${language.transcriptionProvider}" speechModel="${language.speechModel}" />
     </ConversationRelay>
   </Connect>
 </Response>`;

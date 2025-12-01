@@ -1,78 +1,6 @@
 # Twilio Azure AI Agents - Conversation Relay Example
 
-A production-ready Node.js implementation demonstrating how to integrate Twilio Conversation Relay with Microsoft Azure AI Agents. This project includes both a **CLI tool** for testing and a **voice server** for phone-based AI interactions.
-
-## Two Modes of Operation
-
-1. **CLI Mode** - Interactive command-line chat for testing and development
-2. **Voice Server Mode** - Full Twilio Conversation Relay integration for phone calls with voice capabilities
-
-## Setup
-
-1. **Install dependencies:**
-   ```sh
-   npm install
-   ```
-
-2. **Configure environment variables:**
-   - Copy `.env.example` to `.env` and fill in your Azure credentials:
-   - Required variables:
-     - `PROJECT_ENDPOINT` - Your Azure AI project endpoint (e.g., `https://your-project.services.ai.azure.com`)
-     - `PROJECT_ID` - Your Azure AI project ID
-     - `AGENT_ID` - Your Azure AI Agent ID
-   - Optional variables:
-     - `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET` - Only needed if not using Azure CLI (`az login`) or other DefaultAzureCredential methods
-     - `DEBUG` - Set to any value to enable verbose debug logging
-
-3. **Authenticate with Azure:**
-   - Either run `az login` to authenticate via Azure CLI (recommended for development)
-   - Or set the Azure Service Principal credentials in your `.env` file
-
-## Usage
-
-Start the CLI with:
-
-```sh
-node context/twilio-azure-conversation-relay.js
-```
-
-The CLI provides an interactive chat interface with the following features:
-
-- **Real-time streaming**: Agent responses stream in real-time using the Azure AI SDK
-- **Thread management**: Create new conversation threads or continue existing ones
-- **Metadata support**: Add custom metadata to conversation threads
-- **Tool calling visibility**: See when the agent calls external functions or tools
-- **Error handling**: Graceful handling of errors and connection issues
-
-### Interactive prompts:
-
-1. If `AGENT_ID` is not set in `.env`, you'll be prompted to enter it
-2. Choose whether to create a new thread or use an existing one
-3. Optionally add metadata to new threads
-4. Type your messages and receive streaming responses
-5. Type `exit` to quit the session
-
-### Debug mode:
-
-Enable detailed logging by setting the `DEBUG` environment variable:
-
-```sh
-DEBUG=1 node context/twilio-azure-conversation-relay.js
-```
-
-**Note:** For voice integration with phone calls, see the [Voice Server Mode](#voice-server-mode---twilio-conversation-relay) section below. Run with `npm run dev`.
-
-## Features
-
-- **SDK-based streaming**: Uses Azure AI Agents SDK for efficient real-time responses
-- **Comprehensive event handling**: Tracks run states, tool calls, message creation, and errors
-- **Visual feedback**: Progress indicators for agent thinking and tool execution
-- **Flexible authentication**: Uses DefaultAzureCredential for secure authentication
-- **Production-ready**: Error handling, input validation, and clean shutdown
-
----
-
-# Voice Server Mode - Twilio Conversation Relay
+A production-ready Node.js voice server demonstrating how to integrate Twilio Conversation Relay with Microsoft Azure AI Agents for phone-based AI interactions.
 
 The voice server provides full phone integration with your Azure AI Agent, allowing callers to interact with your AI via voice.
 
@@ -80,9 +8,8 @@ The voice server provides full phone integration with your Azure AI Agent, allow
 
 ### Core Capabilities
 - **Real-time voice conversation** - Bidirectional voice communication with streaming responses
-- **Inbound & outbound calling** - Handle incoming calls and programmatically initiate outbound calls via API
-- **DTMF input handling** - Support for keypad input (phone number collection, menu selections, language switching)
-- **Dynamic language switching** - Support for multiple languages (English, Spanish) during calls
+- **Inbound calling** - Handle incoming phone calls with AI agent responses
+- **DTMF input handling** - Support for keypad input (phone number collection)
 - **Human agent handoff** - Seamless transfer to live agents via Twilio Flex/TaskRouter
 - **Automatic reconnection** - Handles network interruptions gracefully with state persistence
 - **Session management** - Maintains conversation context across the entire call
@@ -118,7 +45,7 @@ Copy `.env.example` to `.env` and fill in the required variables. See `.env.exam
 - Azure AI credentials (PROJECT_ENDPOINT, PROJECT_ID, AGENT_ID)
 - Twilio credentials (ACCOUNT_SID, AUTH_TOKEN)
 - ngrok domain for local development
-- Optional features (outbound calling, human agent handoff, conversation analytics)
+- Optional features (human agent handoff, conversation analytics)
 
 ### 2. Start ngrok
 
@@ -199,14 +126,7 @@ Server ready to accept connections
 
 During a call, you can press keys on your phone keypad:
 
-- **Press 1**: Switch to Spanish
-- **Press 2**: Switch to English
 - **Phone number collection**: When the agent asks for a phone number, enter 10 digits
-- **Date of birth**: When asked, enter 8 digits (MMDDYYYY)
-
-### Testing Language Switching
-
-Your Azure agent can request a language switch by calling a tool/function with the target language. The server will automatically send the appropriate language configuration to Twilio.
 
 ### Testing Human Agent Handoff
 
@@ -214,94 +134,6 @@ If your Azure agent calls a handoff tool/function, the server will automatically
 1. Transfer the call to Twilio TaskRouter
 2. Pass conversation context and summary to the human agent
 3. Enqueue the caller for the next available agent
-
-## Outbound Calling
-
-The voice server now supports **outbound calling**, allowing you to programmatically initiate phone calls to users via API. Outbound calls use the same Azure AI agent and WebSocket infrastructure as inbound calls.
-
-### Configuration
-
-Add your Twilio phone number to `.env` (optional, can also be provided per-call):
-
-```bash
-TWILIO_PHONE_NUMBER=+15551234567
-```
-
-### Making Outbound Calls
-
-**Initiate a call via API:**
-
-```bash
-curl -X POST https://your-subdomain.ngrok.app/api/outbound/initiate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "+14155551212",
-    "from": "+15551234567"
-  }'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "callSid": "CAxxxxxxxxxxxxxxxxxxxxx",
-  "status": "queued",
-  "to": "+14155551212",
-  "from": "+15551234567",
-  "direction": "outbound-api"
-}
-```
-
-### How Outbound Calls Work
-
-1. **API Request** - Your application calls `/api/outbound/initiate` with phone numbers
-2. **Twilio Creates Call** - Twilio REST API initiates the call to the recipient
-3. **TwiML Request** - When answered, Twilio requests TwiML from `/api/outbound/twiml`
-4. **ConversationRelay** - TwiML establishes WebSocket connection (identical to inbound)
-5. **Azure Agent** - Your AI agent handles the conversation with the same capabilities as inbound calls
-6. **Status Updates** - Twilio posts status updates to `/api/outbound/status`
-
-### Outbound Call Features
-
-Outbound calls support **all the same features** as inbound calls:
-- Real-time voice conversation with streaming responses
-- DTMF input handling
-- Language switching
-- Human agent handoff
-- Automatic reconnection
-- Session state management
-
-### Integration Example
-
-```javascript
-// Example: Trigger an outbound call from your application
-async function callCustomer(customerPhone) {
-  const response = await fetch('https://your-domain.ngrok.app/api/outbound/initiate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      to: customerPhone,
-      from: process.env.TWILIO_PHONE_NUMBER
-    })
-  });
-
-  const result = await response.json();
-  console.log('Call initiated:', result.callSid);
-  return result;
-}
-
-// Call a customer for appointment reminder
-await callCustomer('+14155551212');
-```
-
-### Use Cases
-
-- **Appointment reminders** - Automated reminder calls before appointments
-- **Order notifications** - Call customers about order status changes
-- **Surveys** - Conduct automated phone surveys
-- **Lead follow-up** - Reach out to new leads automatically
-- **Alerts** - Notify users of important events or updates
-- **Customer support** - Proactive outreach for unresolved issues
 
 ## Conversational Intelligence (Optional)
 
@@ -315,7 +147,7 @@ await callCustomer('+14155551212');
    ```bash
    TWILIO_INTELLIGENCE_SERVICE_SID=GAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
-4. Restart the server - all calls (inbound, outbound, reconnections) will be tracked automatically
+4. Restart the server - all calls will be tracked automatically
 
 Access data via Twilio Console or Intelligence API. May incur additional Twilio charges. [Documentation](https://www.twilio.com/docs/voice/twiml/connect/conversationrelay/intelligence)
 
@@ -409,44 +241,6 @@ Twilio webhook for call completion. Handles:
 - WebSocket reconnection (error 64105)
 - Human agent handoff
 
-### Outbound Call - Initiate
-```
-POST /api/outbound/initiate
-```
-API endpoint to programmatically initiate outbound calls.
-
-**Request Body:**
-```json
-{
-  "to": "+14155551212",
-  "from": "+15551234567"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "callSid": "CAxxxxxxxxxxxxxxxxxxxxx",
-  "status": "queued",
-  "to": "+14155551212",
-  "from": "+15551234567",
-  "direction": "outbound-api"
-}
-```
-
-### Outbound Call - TwiML
-```
-POST /api/outbound/twiml
-```
-Twilio webhook for outbound calls. Returns TwiML to establish ConversationRelay connection (identical to inbound calls).
-
-### Outbound Call - Status
-```
-POST /api/outbound/status
-```
-Twilio webhook for outbound call status updates. Receives status callbacks for call events (initiated, ringing, answered, completed).
-
 ## Troubleshooting
 
 **ngrok/webhook errors** - Verify ngrok is running and `NGROK_DOMAIN` in `.env` matches your ngrok URL
@@ -461,6 +255,8 @@ Twilio webhook for outbound call status updates. Receives status callbacks for c
 
 ## Docker Deployment
 
+> ⚠️ **Important**: This is an example configuration. Review and customize all settings for your specific production environment, security requirements, and compliance needs before deploying to production. See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed guidance.
+
 This application is Docker-ready with production-optimized containers for easy deployment to cloud platforms.
 
 ### Quick Start with Docker Compose
@@ -470,9 +266,19 @@ The fastest way to run the application with Docker:
 ```bash
 # 1. Create your .env file
 cp .env.example .env
-# Edit .env with your credentials and set PRODUCTION_DOMAIN
+# Edit .env with your credentials
 
-# 2. Build and run with Docker Compose
+# 2. IMPORTANT: Add Azure Service Principal credentials
+# Docker containers cannot access 'az login' credentials
+# Create service principal:
+az ad sp create-for-rbac --name "twilio-azure-ai-agents-docker" --role Contributor
+
+# Add the output to your .env file:
+# AZURE_CLIENT_ID=<appId from output>
+# AZURE_TENANT_ID=<tenant from output>
+# AZURE_CLIENT_SECRET=<password from output>
+
+# 3. Build and run with Docker Compose
 npm run docker:compose:up
 
 # Or use docker-compose directly
@@ -493,32 +299,7 @@ npm run docker:compose:down    # Stop docker-compose
 npm run docker:compose:build   # Rebuild and start
 ```
 
-### Cloud Platform Deployment
-
-Deploy to production on major cloud platforms:
-
-#### AWS ECS Fargate
-```bash
-# Build and push to ECR
-docker tag twilio-azure-agent:latest YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/twilio-azure-agent:latest
-docker push YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/twilio-azure-agent:latest
-
-# Use the provided task definition template
-# See deployment/aws-ecs-task-definition.json
-```
-
-#### Google Cloud Run
-```bash
-# Build and deploy
-gcloud builds submit --tag gcr.io/YOUR_PROJECT/twilio-azure-agent
-gcloud run deploy twilio-azure-agent \
-  --image gcr.io/YOUR_PROJECT/twilio-azure-agent \
-  --platform managed \
-  --allow-unauthenticated \
-  --set-env-vars NODE_ENV=production
-```
-
-#### Azure Container Apps
+### Azure Container Apps Deployment
 ```bash
 # Build and push to ACR
 az acr build --registry YOUR_REGISTRY --image twilio-azure-agent:latest .
@@ -539,11 +320,9 @@ For production deployment:
    ```
 
 2. **Use secrets management** (not .env files):
-   - AWS: Secrets Manager + ECS secrets
-   - GCP: Secret Manager + Cloud Run secrets
-   - Azure: Key Vault + Container Apps secrets
+   - Use Azure Key Vault + Container Apps secrets for production credentials
 
-3. **Configure SSL/TLS**: All cloud platforms provide automatic SSL
+3. **Configure SSL/TLS**: Azure Container Apps provides automatic SSL
 
 4. **Update Twilio webhooks** to your production domain:
    ```
@@ -566,8 +345,8 @@ See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the complete guide.
 
 ### Docker Image Details
 
-- **Base Image**: node:20-alpine (minimal, secure)
-- **Image Size**: ~150MB (optimized multi-stage build)
+- **Base Image**: node:20-slim (Debian-based for reliable SSL/TLS)
+- **Image Size**: ~200MB (optimized multi-stage build)
 - **Security**: Runs as non-root user
 - **Health Check**: Built-in `/health` endpoint monitoring
 - **Port**: Exposes 3000 (configurable via PORT env var)
@@ -587,11 +366,8 @@ Monitor these logs to understand usage patterns and troubleshoot issues.
 
 1. Customize the welcome greeting in `.env`
 2. Configure your Azure agent with custom tools/functions
-3. Adjust language options in `src/config.js`
-4. Customize DTMF behavior in `src/services/dtmfHelper.js`
-5. Set up outbound calling by adding `TWILIO_PHONE_NUMBER` to `.env`
-6. Integrate outbound calling API into your application for automated calls
-7. Enable Conversational Intelligence for conversation analytics and AI agent observability
-8. Add custom middleware or authentication
-9. Integrate with your CRM or database
-10. Set up production deployment
+3. Customize DTMF behavior in `src/services/dtmfHelper.js`
+4. Enable Conversational Intelligence for conversation analytics and AI agent observability
+5. Add custom middleware or authentication
+6. Integrate with your CRM or database
+7. Set up production deployment

@@ -43,7 +43,7 @@ context/
 .classpath
 
 # Logs
-logs
+logs/
 *.log
 
 # Operating system files

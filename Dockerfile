@@ -2,7 +2,12 @@
 # Optimized for production deployment on cloud platforms (AWS ECS, GCP Cloud Run, Azure Container Apps)
 
 # Stage 1: Dependencies
-FROM node:20-alpine AS dependencies
+FROM node:20-slim AS dependencies
+
+# Install CA certificates for SSL/TLS connections
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -15,7 +20,13 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 # Stage 2: Production image
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
+
+# Install CA certificates for SSL/TLS connections to Azure
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    update-ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Add metadata labels
 LABEL maintainer="Twilio-Azure AI Agents"
@@ -28,6 +39,10 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
+# Configure Node.js to use system CA certificates
+# NODE_EXTRA_CA_CERTS is the standard way to add CA certs in Node.js containers
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # Copy production dependencies from dependencies stage
 COPY --from=dependencies /app/node_modules ./node_modules
 
@@ -37,8 +52,12 @@ COPY package*.json ./
 # Copy application source code
 COPY src/ ./src/
 
+# Fix permissions to ensure node user can access all files
+# This is necessary because local file permissions may be restrictive
+RUN chmod -R 755 /app/src
+
 # Create non-root user and switch to it for security
-# The 'node' user is pre-created in the node:alpine image
+# The 'node' user is pre-created in the node:slim image
 USER node
 
 # Expose the application port

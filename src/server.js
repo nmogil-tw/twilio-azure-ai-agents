@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import http from 'http';
 import { config } from './config.js';
@@ -13,7 +12,6 @@ const app = express();
 const port = config.server.port;
 
 // Middleware
-app.use(cors());
 // IMPORTANT: urlencoded parser MUST come before json parser for Twilio webhooks
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -125,11 +123,8 @@ server.listen(port, () => {
   console.log(`   Workflow SID: ${config.twilio.workflowSid}`);
   console.log('');
 
-  console.log('Supported Languages:');
-  Object.keys(config.languages).forEach(lang => {
-    const langConfig = config.languages[lang];
-    console.log(`   ${lang}: ${langConfig.locale_code} (${langConfig.voice})`);
-  });
+  console.log('Language Configuration:');
+  console.log(`   Locale: ${config.language.locale_code} (${config.language.voice})`);
   console.log('');
 
   console.log('Server ready to accept connections');

@@ -86,23 +86,14 @@ if (process.env.TWILIO_INTELLIGENCE_SERVICE_SID && !isValidIntelligenceService(p
  */
 
 /**
- * Language options for conversation
+ * Language configuration for conversation
  */
-export const languageOptions = {
-  english: {
-    locale_code: 'en-US',
-    ttsProvider: process.env.TTS_PROVIDER || 'google',
-    voice: process.env.TTS_VOICE_EN || 'en-US-Journey-O',
-    transcriptionProvider: process.env.TRANSCRIPTION_PROVIDER || 'google',
-    speechModel: process.env.SPEECH_MODEL || 'telephony'
-  },
-  spanish: {
-    locale_code: 'es-US',
-    ttsProvider: process.env.TTS_PROVIDER || 'google',
-    voice: process.env.TTS_VOICE_ES || 'es-US-Journey-F',
-    transcriptionProvider: process.env.TRANSCRIPTION_PROVIDER || 'google',
-    speechModel: process.env.SPEECH_MODEL || 'telephony'
-  }
+export const languageConfig = {
+  locale_code: 'en-US',
+  ttsProvider: process.env.TTS_PROVIDER || 'google',
+  voice: process.env.TTS_VOICE_EN || 'en-US-Journey-O',
+  transcriptionProvider: process.env.TRANSCRIPTION_PROVIDER || 'google',
+  speechModel: process.env.SPEECH_MODEL || 'telephony'
 };
 
 /**
@@ -142,8 +133,8 @@ export const config = {
     port: parseInt(process.env.PORT || '3000', 10)
   },
 
-  // Language Options
-  languages: languageOptions,
+  // Language Configuration
+  language: languageConfig,
 
   // Debug mode
   debug: process.env.DEBUG === '1' || process.env.DEBUG === 'true'

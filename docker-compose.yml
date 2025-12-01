@@ -42,39 +42,9 @@ services:
       retries: 3
       start_period: 10s
 
-    # Resource limits (optional - adjust based on your needs)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1'
-    #       memory: 512M
-    #     reservations:
-    #       cpus: '0.5'
-    #       memory: 256M
-
     # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-# Optional: Add Redis for future horizontal scaling
-# Uncomment when ready to scale beyond single instance
-#
-#   redis:
-#     image: redis:7-alpine
-#     container_name: twilio-redis
-#     ports:
-#       - "6379:6379"
-#     volumes:
-#       - redis-data:/data
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "redis-cli", "ping"]
-#       interval: 10s
-#       timeout: 3s
-#       retries: 3
-
-# volumes:
-#   redis-data:
