@@ -33,6 +33,19 @@ function isValidWorkflowSid(sid) {
   return sid && sid.startsWith('WW') && sid.length === 34;
 }
 
+/**
+ * Validates Twilio Intelligence Service SID format or Unique Name
+ * @param {string} value - Intelligence Service SID or Unique Name
+ * @returns {boolean}
+ */
+function isValidIntelligenceService(value) {
+  if (!value) return false;
+  // Valid if it's a Service SID (starts with GA, 34 chars) or a Unique Name (alphanumeric/underscore)
+  const isSid = value.startsWith('GA') && value.length === 34;
+  const isUniqueName = /^[a-zA-Z0-9_-]+$/.test(value);
+  return isSid || isUniqueName;
+}
+
 // Validate required Azure configuration
 validateRequired('PROJECT_ENDPOINT', process.env.PROJECT_ENDPOINT);
 validateRequired('PROJECT_ID', process.env.PROJECT_ID);
@@ -51,6 +64,11 @@ if (!isValidTwilioSid(process.env.TWILIO_ACCOUNT_SID)) {
 
 if (!isValidWorkflowSid(process.env.TWILIO_WORKFLOW_SID)) {
   console.warn('WARNING: TWILIO_WORKFLOW_SID format looks incorrect (should start with WW and be 34 chars)');
+}
+
+// Validate optional Intelligence Service SID format
+if (process.env.TWILIO_INTELLIGENCE_SERVICE_SID && !isValidIntelligenceService(process.env.TWILIO_INTELLIGENCE_SERVICE_SID)) {
+  console.warn('WARNING: TWILIO_INTELLIGENCE_SERVICE_SID format looks incorrect (should start with GA and be 34 chars, or be a valid Unique Name)');
 }
 
 /**
@@ -104,7 +122,8 @@ export const config = {
     authToken: process.env.TWILIO_AUTH_TOKEN,
     workflowSid: process.env.TWILIO_WORKFLOW_SID,
     phoneNumber: process.env.TWILIO_PHONE_NUMBER, // Optional: default phone number for outbound calls
-    welcomeGreeting: process.env.WELCOME_GREETING || "Hello! I'm your AI assistant. How can I help you today?"
+    welcomeGreeting: process.env.WELCOME_GREETING || "Hello! I'm your AI assistant. How can I help you today?",
+    intelligenceServiceSid: process.env.TWILIO_INTELLIGENCE_SERVICE_SID || null // Optional: Conversational Intelligence Service SID or Unique Name
   },
 
   // ngrok Configuration
@@ -147,6 +166,14 @@ export function maskSensitiveConfig(config) {
 
 // Log configuration on startup (with masked sensitive values)
 if (process.env.NODE_ENV !== 'production') {
-  console.log(' Configuration loaded:');
+  console.log('✓ Configuration loaded:');
   console.log(JSON.stringify(maskSensitiveConfig(config), null, 2));
+}
+
+// Log Conversational Intelligence status
+if (config.twilio.intelligenceServiceSid) {
+  console.log(`✓ Conversational Intelligence ENABLED: Service ${config.twilio.intelligenceServiceSid}`);
+  console.log('  → ConversationRelay transcripts will be sent to Twilio Conversational Intelligence for analysis');
+} else {
+  console.log('ℹ Conversational Intelligence DISABLED (TWILIO_INTELLIGENCE_SERVICE_SID not set)');
 }

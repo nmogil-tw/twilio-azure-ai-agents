@@ -71,6 +71,12 @@ export async function handleOutboundTwiML(callData) {
     const ngrokDomain = config.ngrok.domain;
     const welcomeGreeting = config.twilio.welcomeGreeting;
     const languages = config.languages;
+    const intelligenceServiceSid = config.twilio.intelligenceServiceSid;
+
+    // Build intelligenceService attribute if configured
+    const intelligenceAttr = intelligenceServiceSid
+      ? `intelligenceService="${intelligenceServiceSid}"`
+      : '';
 
     // Build TwiML response with ConversationRelay
     // This is identical to inbound calls - the WebSocket handles the conversation
@@ -81,12 +87,16 @@ export async function handleOutboundTwiML(callData) {
       url="wss://${ngrokDomain}"
       dtmfDetection="true"
       interruptByDtmf="false"
-      welcomeGreeting="${escapeXml(welcomeGreeting)}">
+      welcomeGreeting="${escapeXml(welcomeGreeting)}"${intelligenceAttr ? `\n      ${intelligenceAttr}` : ''}>
       <Language code="${languages.english.locale_code}" ttsProvider="${languages.english.ttsProvider}" voice="${languages.english.voice}" transcriptionProvider="${languages.english.transcriptionProvider}" speechModel="${languages.english.speechModel}" />
       <Language code="${languages.spanish.locale_code}" ttsProvider="${languages.spanish.ttsProvider}" voice="${languages.spanish.voice}" transcriptionProvider="${languages.spanish.transcriptionProvider}" speechModel="${languages.spanish.speechModel}" />
     </ConversationRelay>
   </Connect>
 </Response>`;
+
+    if (intelligenceServiceSid) {
+      console.log(`   → Conversational Intelligence enabled for this call (Service: ${intelligenceServiceSid})`);
+    }
 
     if (config.debug) {
       console.log(' TwiML response:');
